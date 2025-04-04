@@ -24,14 +24,14 @@ readonly class TableGateway
     /**
      * Counts the number of rows in a database table, optionally applying a conditional WHERE clause.
      *
-     * @param array<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be counted.
-     * @param list<mixed>|array<string, mixed>|null         $params Parameters to bind to the WHERE clause.
-     * @param array|null                                    $types  Parameter types for the bound parameters.
+     * @param list<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be counted.
+     * @param list<mixed>|array<string, mixed>|null        $params Parameters to bind to the WHERE clause.
+     * @param array|null                                   $types  Parameter types for the bound parameters.
      *
      * @return int The count of rows matching the criteria, or the total number of rows if no criteria are provided.
      * @throws Exception
      *
-     * @phpstan-param WrapperParameterTypeArray|null        $types
+     * @phpstan-param WrapperParameterTypeArray|null       $types
      */
     public function count(
         array|string|null $where = null,
@@ -47,14 +47,14 @@ readonly class TableGateway
     /**
      * Retrieves rows from a database table based on the specified columns and optional WHERE clause.
      *
-     * @param string                                        $columns Columns to retrieve, defaults to '*'.
-     * @param array<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows to be retrieved.
-     * @param list<mixed>|array<string, mixed>|null         $params  Parameters to bind to the WHERE clause.
-     * @param array|null                                    $types   Parameter types for the bound parameters.
+     * @param string                                       $columns Columns to retrieve, defaults to '*'.
+     * @param list<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows to be retrieved.
+     * @param list<mixed>|array<string, mixed>|null        $params  Parameters to bind to the WHERE clause.
+     * @param array|null                                   $types   Parameter types for the bound parameters.
      *
      * @throws Exception
      *
-     * @phpstan-param WrapperParameterTypeArray|null        $types
+     * @phpstan-param WrapperParameterTypeArray|null       $types
      */
     public function select(
         string $columns = '*',
@@ -106,15 +106,15 @@ readonly class TableGateway
     /**
      * Builds and configures a QueryBuilder object with the given columns, WHERE clause, parameters, and types.
      *
-     * @param string                                        $columns Columns to retrieve.
-     * @param array<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows.
-     * @param list<mixed>|array<string, mixed>|null         $params  Parameters to bind to the WHERE clause.
-     * @param array|null                                    $types   Parameter types for the bound parameters.
+     * @param string                                       $columns Columns to retrieve.
+     * @param list<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows.
+     * @param list<mixed>|array<string, mixed>|null        $params  Parameters to bind to the WHERE clause.
+     * @param array|null                                   $types   Parameter types for the bound parameters.
      *
      * @return QueryBuilder The configured QueryBuilder object.
      * @throws QueryException
      *
-     * @phpstan-param WrapperParameterTypeArray|null        $types
+     * @phpstan-param WrapperParameterTypeArray|null       $types
      */
     private function buildQuery(
         string $columns,
