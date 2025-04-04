@@ -70,17 +70,17 @@ readonly class TableGateway
      * Retrieves the first row from a database table based on the specified columns, with an optional WHERE clause and
      * an optional strict mode to enforce a single row.
      *
-     * @param string                                        $columns Columns to retrieve, defaults to '*'.
-     * @param array<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows to be retrieved.
-     * @param list<mixed>|array<string, mixed>|null         $params  Parameters to bind to the WHERE clause.
-     * @param array|null                                    $types   Parameter types for the bound parameters.
-     * @param bool                                          $strict  Determines whether strict mode is enabled; if true, an exception is thrown for more than one row.
+     * @param string                                       $columns Columns to retrieve, defaults to '*'.
+     * @param list<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows to be retrieved.
+     * @param list<mixed>|array<string, mixed>|null        $params  Parameters to bind to the WHERE clause.
+     * @param array|null                                   $types   Parameter types for the bound parameters.
+     * @param bool                                         $strict  Determines whether strict mode is enabled; if true, an exception is thrown for more than one row.
      *
      * @return array<string, mixed>|null The first row of the query as an associative array, or NULL if no rows are found.
      * @throws ResultException           If strict mode is enabled and the query returns more than one row.
      * @throws Exception
      *
-     * @phpstan-param WrapperParameterTypeArray|null        $types
+     * @phpstan-param WrapperParameterTypeArray|null       $types
      */
     public function selectFirst(
         string $columns = '*',
