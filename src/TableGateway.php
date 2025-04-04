@@ -6,9 +6,11 @@ namespace BlackBonjour\TableGateway;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Query\Expression\CompositeExpression;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
+use Doctrine\DBAL\Types\Type;
 use SensitiveParameter;
 
 /**
@@ -45,6 +47,20 @@ readonly class TableGateway
     }
 
     /**
+     * Inserts data into the database table.
+     *
+     * @param array<string, mixed>                                                                  $data  The data to be inserted into the table as an associative array.
+     * @param array<int<0,max>, string|ParameterType|Type>|array<string, string|ParameterType|Type> $types An optional array specifying the types of the data values.
+     *
+     * @return int The number of affected rows.
+     * @throws Exception
+     */
+    public function insert(array $data, array $types = []): int
+    {
+        return (int) $this->connection->insert($this->table, $data, $types);
+    }
+
+    /**
      * Retrieves rows from a database table based on the specified columns and optional WHERE clause.
      *
      * @param string                                       $columns Columns to retrieve, defaults to '*'.
@@ -67,8 +83,7 @@ readonly class TableGateway
     }
 
     /**
-     * Retrieves the first row from a database table based on the specified columns, with an optional WHERE clause and
-     * an optional strict mode to enforce a single row.
+     * Retrieves the first row from a database table based on the specified columns, with an optional WHERE clause and an optional strict mode to enforce a single row.
      *
      * @param string                                       $columns Columns to retrieve, defaults to '*'.
      * @param list<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows to be retrieved.
@@ -101,6 +116,21 @@ readonly class TableGateway
         }
 
         return $result->fetchAssociative() ?: null;
+    }
+
+    /**
+     * Updates data in the database table based on the specified criteria.
+     *
+     * @param array<string, mixed>                                                                  $data     The data to be updated in the table as an associative array.
+     * @param array<string, mixed>                                                                  $criteria An optional associative array defining the conditions for the update.
+     * @param array<int<0,max>, string|ParameterType|Type>|array<string, string|ParameterType|Type> $types    An optional array specifying the types of the data values and criteria.
+     *
+     * @return int The number of affected rows.
+     * @throws Exception
+     */
+    public function update(array $data, array $criteria = [], array $types = []): int
+    {
+        return (int) $this->connection->update($this->table, $data, $criteria, $types);
     }
 
     /**

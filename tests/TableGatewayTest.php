@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BlackBonjourTest\TableGateway;
 
+use BlackBonjour\TableGateway\QueryException;
 use BlackBonjour\TableGateway\ResultException;
 use BlackBonjour\TableGateway\TableGateway;
 use Doctrine\DBAL\Connection;
@@ -20,7 +21,7 @@ final class TableGatewayTest extends TestCase
      *
      * @throws Throwable
      */
-    public function testCountWithoutWhereClause(): void
+    public function testCount(): void
     {
         $result = $this->createMock(Result::class);
         $result->expects($this->once())->method('fetchFirstColumn')->willReturn([5]);
@@ -144,11 +145,81 @@ final class TableGatewayTest extends TestCase
     }
 
     /**
+     * Verifies that the `insert` method successfully inserts data and returns the affected row count.
+     *
+     * @throws Throwable
+     */
+    public function testInsert(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('insert')
+            ->with('test_table', ['id' => 1, 'name' => 'John Doe'])
+            ->willReturn(1);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(1, $tableGateway->insert(['id' => 1, 'name' => 'John Doe']));
+    }
+
+    /**
+     * Verifies that the `insert` method throws an exception when the insert operation fails.
+     *
+     * @throws Throwable
+     */
+    public function testInsertThrowsExceptionOnFailure(): void
+    {
+        $this->expectException(QueryException::class);
+        $this->expectExceptionCode(0);
+        $this->expectExceptionMessage('Insert operation failed!');
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('insert')
+            ->with('test_table', ['id' => 1, 'name' => 'Invalid'])
+            ->willThrowException(new QueryException('Insert operation failed!'));
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+        $tableGateway->insert(['id' => 1, 'name' => 'Invalid']);
+    }
+
+    /**
+     * Verifies that the `insert` method correctly handles custom parameter types.
+     *
+     * @throws Throwable
+     */
+    public function testInsertWithParameterTypes(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('insert')
+            ->with(
+                'test_table',
+                ['id' => 1, 'value' => 'test'],
+                ['id' => ParameterType::INTEGER, 'value' => ParameterType::STRING],
+            )
+            ->willReturn(1);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(
+            1,
+            $tableGateway->insert(
+                ['id' => 1, 'value' => 'test'],
+                ['id' => ParameterType::INTEGER, 'value' => ParameterType::STRING],
+            ),
+        );
+    }
+
+    /**
      * Verifies the `select` method retrieves all columns without a WHERE clause.
      *
      * @throws Throwable
      */
-    public function testSelectAllColumnsWithoutWhereClause(): void
+    public function testSelect(): void
     {
         $result = $this->createMock(Result::class);
 
@@ -172,7 +243,7 @@ final class TableGatewayTest extends TestCase
      *
      * @throws Throwable
      */
-    public function testSelectSpecificColumnsWithoutWhereClause(): void
+    public function testSelectWithoutWhereClauseAndSpecificColumns(): void
     {
         $result = $this->createMock(Result::class);
 
@@ -246,6 +317,34 @@ final class TableGatewayTest extends TestCase
     }
 
     /**
+     * Verifies the result of the `selectFirst` method without a WHERE clause.
+     *
+     * @throws Throwable
+     */
+    public function testSelectFirst(): void
+    {
+        $result = $this->createMock(Result::class);
+        $result
+            ->expects($this->once())
+            ->method('fetchAssociative')
+            ->willReturn(['id' => 1, 'name' => 'John Doe']);
+
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+        $queryBuilder->expects($this->once())->method('select')->with('*');
+        $queryBuilder->expects($this->once())->method('from')->with('test_table');
+        $queryBuilder->expects($this->never())->method('where');
+        $queryBuilder->expects($this->never())->method('setParameters');
+        $queryBuilder->expects($this->once())->method('executeQuery')->willReturn($result);
+
+        $connection = $this->createMock(Connection::class);
+        $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(['id' => 1, 'name' => 'John Doe'], $tableGateway->selectFirst());
+    }
+
+    /**
      * Verifies the support for an array-based WHERE clause in the `selectFirst` method.
      *
      * @throws Throwable
@@ -277,34 +376,6 @@ final class TableGatewayTest extends TestCase
                 params: ['status' => 'active'],
             ),
         );
-    }
-
-    /**
-     * Verifies the result of the `selectFirst` method without a WHERE clause.
-     *
-     * @throws Throwable
-     */
-    public function testSelectFirstWithoutWhereClause(): void
-    {
-        $result = $this->createMock(Result::class);
-        $result
-            ->expects($this->once())
-            ->method('fetchAssociative')
-            ->willReturn(['id' => 1, 'name' => 'John Doe']);
-
-        $queryBuilder = $this->createMock(QueryBuilder::class);
-        $queryBuilder->expects($this->once())->method('select')->with('*');
-        $queryBuilder->expects($this->once())->method('from')->with('test_table');
-        $queryBuilder->expects($this->never())->method('where');
-        $queryBuilder->expects($this->never())->method('setParameters');
-        $queryBuilder->expects($this->once())->method('executeQuery')->willReturn($result);
-
-        $connection = $this->createMock(Connection::class);
-        $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
-
-        $tableGateway = new TableGateway($connection, 'test_table');
-
-        self::assertEquals(['id' => 1, 'name' => 'John Doe'], $tableGateway->selectFirst());
     }
 
     /**
@@ -445,5 +516,95 @@ final class TableGatewayTest extends TestCase
         $tableGateway = new TableGateway($connection, 'test_table');
 
         self::assertNull($tableGateway->selectFirst(where: 'username = :username', params: ['username' => 'testuser']));
+    }
+
+    /**
+     * Verifies that the `update` method successfully updates rows and returns the affected row count.
+     *
+     * @throws Throwable
+     */
+    public function testUpdate(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('update')
+            ->with('test_table', ['name' => 'Updated Name'], ['id' => 1])
+            ->willReturn(1);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(1, $tableGateway->update(['name' => 'Updated Name'], ['id' => 1]));
+    }
+
+    /**
+     * Verifies that the `update` method returns 0 when no rows match the update criteria.
+     *
+     * @throws Throwable
+     */
+    public function testUpdateNoAffectedRows(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('update')
+            ->with('test_table', ['email' => 'updated@test.com'], ['id' => 999])
+            ->willReturn(0);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(0, $tableGateway->update(['email' => 'updated@test.com'], ['id' => 999]));
+    }
+
+    /**
+     * Verifies that the `update` method correctly handles exception on failure.
+     *
+     * @throws Throwable
+     */
+    public function testUpdateThrowsExceptionOnFailure(): void
+    {
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('Update operation failed!');
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('update')
+            ->with('test_table', ['name' => 'Invalid Update'], ['id' => 1])
+            ->willThrowException(new QueryException('Update operation failed!'));
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+        $tableGateway->update(['name' => 'Invalid Update'], ['id' => 1]);
+    }
+
+    /**
+     * Verifies that the `update` method supports custom parameter types.
+     *
+     * @throws Throwable
+     */
+    public function testUpdateWithParameterTypes(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('update')
+            ->with(
+                'test_table',
+                ['value' => 'Updated Value'],
+                ['id' => 42],
+                ['id' => ParameterType::INTEGER],
+            )
+            ->willReturn(1);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(
+            1,
+            $tableGateway->update(
+                ['value' => 'Updated Value'],
+                ['id' => 42],
+                ['id' => ParameterType::INTEGER],
+            ),
+        );
     }
 }
