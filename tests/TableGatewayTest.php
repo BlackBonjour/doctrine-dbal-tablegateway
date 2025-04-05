@@ -108,7 +108,7 @@ final class TableGatewayTest extends TestCase
         $queryBuilder->expects($this->once())->method('select')->with('COUNT(1)');
         $queryBuilder->expects($this->once())->method('from')->with('test_table');
         $queryBuilder->expects($this->once())->method('where')->with('id = :id');
-        $queryBuilder->expects($this->once())->method('setParameters')->with(['id' => 10], []);
+        $queryBuilder->expects($this->once())->method('setParameters')->with(['id' => 10]);
         $queryBuilder->expects($this->once())->method('executeQuery')->willReturn($result);
 
         $connection = $this->createMock(Connection::class);
@@ -142,6 +142,77 @@ final class TableGatewayTest extends TestCase
         $tableGateway = new TableGateway($connection, 'test_table');
 
         self::assertEquals(0, $tableGateway->count());
+    }
+
+    /**
+     * Verifies that the `delete` method deletes rows and returns the affected row count.
+     *
+     * @throws Throwable
+     */
+    public function testDelete(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('delete')
+            ->with('test_table', ['id' => 1])
+            ->willReturn(1);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(1, $tableGateway->delete(['id' => 1]));
+    }
+
+    /**
+     * Verifies that the `delete` method throws an exception when no criteria is provided and the strict flag is true.
+     *
+     * @throws Throwable
+     */
+    public function testDeleteThrowsExceptionWhenNoCriteriaProvidedAndStrict(): void
+    {
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('No criteria provided for deletion');
+
+        $tableGateway = new TableGateway($this->createMock(Connection::class), 'test_table');
+        $tableGateway->delete();
+    }
+
+    /**
+     * Verifies that the `delete` method deletes all rows when no criteria are provided and strict mode is disabled.
+     *
+     * @throws Throwable
+     */
+    public function testDeleteWithoutCriteriaWhenStrictIsFalse(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('delete')
+            ->with('test_table')
+            ->willReturn(3);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(3, $tableGateway->delete(strict: false));
+    }
+
+    /**
+     * Verifies that the `delete` method correctly handles parameter types.
+     *
+     * @throws Throwable
+     */
+    public function testDeleteWithParameterTypes(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('delete')
+            ->with('test_table', ['id' => 42], ['id' => ParameterType::INTEGER])
+            ->willReturn(1);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(1, $tableGateway->delete(['id' => 42], ['id' => ParameterType::INTEGER]));
     }
 
     /**
@@ -275,7 +346,7 @@ final class TableGatewayTest extends TestCase
         $queryBuilder->expects($this->once())->method('select')->with('*');
         $queryBuilder->expects($this->once())->method('from')->with('test_table');
         $queryBuilder->expects($this->once())->method('where')->with('is_active = :active');
-        $queryBuilder->expects($this->once())->method('setParameters')->with(['active' => 1], []);
+        $queryBuilder->expects($this->once())->method('setParameters')->with(['active' => 1]);
         $queryBuilder->expects($this->once())->method('executeQuery')->willReturn($result);
 
         $connection = $this->createMock(Connection::class);
@@ -479,7 +550,7 @@ final class TableGatewayTest extends TestCase
         $queryBuilder->expects($this->once())->method('select')->with('*');
         $queryBuilder->expects($this->once())->method('from')->with('test_table');
         $queryBuilder->expects($this->once())->method('where')->with('id = :id');
-        $queryBuilder->expects($this->once())->method('setParameters')->with(['id' => 2], []);
+        $queryBuilder->expects($this->once())->method('setParameters')->with(['id' => 2]);
         $queryBuilder->expects($this->once())->method('executeQuery')->willReturn($result);
 
         $connection = $this->createMock(Connection::class);
@@ -507,7 +578,7 @@ final class TableGatewayTest extends TestCase
         $queryBuilder->expects($this->once())->method('select')->with('*');
         $queryBuilder->expects($this->once())->method('from')->with('test_table');
         $queryBuilder->expects($this->once())->method('where')->with('username = :username');
-        $queryBuilder->expects($this->once())->method('setParameters')->with(['username' => 'testuser'], []);
+        $queryBuilder->expects($this->once())->method('setParameters')->with(['username' => 'testuser']);
         $queryBuilder->expects($this->once())->method('executeQuery')->willReturn($result);
 
         $connection = $this->createMock(Connection::class);
