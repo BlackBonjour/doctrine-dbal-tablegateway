@@ -1,6 +1,6 @@
 {
-  "name": "blackbonjour/doctrine-tablegateway",
-  "description": "description",
+  "name": "blackbonjour/doctrine-dbal-tablegateway",
+  "description": "Foo Bar",
   "minimum-stability": "stable",
   "license": "MIT",
   "authors": [
