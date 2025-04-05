@@ -55,7 +55,7 @@ readonly class TableGateway
      * @return int The number of affected rows.
      * @throws Exception
      */
-    public function insert(array $data, array $types = []): int
+    public function insert(#[SensitiveParameter] array $data, array $types = []): int
     {
         return (int) $this->connection->insert($this->table, $data, $types);
     }
@@ -128,7 +128,7 @@ readonly class TableGateway
      * @return int The number of affected rows.
      * @throws Exception
      */
-    public function update(array $data, array $criteria = [], array $types = []): int
+    public function update(#[SensitiveParameter] array $data, array $criteria = [], array $types = []): int
     {
         return (int) $this->connection->update($this->table, $data, $criteria, $types);
     }
