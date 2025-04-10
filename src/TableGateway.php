@@ -8,7 +8,6 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Query\Expression\CompositeExpression;
-use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
 use Doctrine\DBAL\Types\Type;
 use SensitiveParameter;
@@ -41,7 +40,23 @@ readonly class TableGateway
         array $params = [],
         array $types = [],
     ): int {
-        $queryBuilder = $this->buildQuery('COUNT(1)', $where, $params, $types);
+        $queryBuilder = $this->connection->createQueryBuilder();
+        $queryBuilder->select('COUNT(1)');
+        $queryBuilder->from($this->table);
+
+        if ($where) {
+            if (is_string($where)) {
+                $queryBuilder->where($where);
+            } elseif (array_is_list($where)) {
+                $queryBuilder->where(...$where);
+            } else {
+                throw new QueryException('Invalid WHERE clause!');
+            }
+
+            if ($params) {
+                $queryBuilder->setParameters($params, $types);
+            }
+        }
 
         return (int) ($queryBuilder->executeQuery()->fetchFirstColumn()[0] ?? 0);
     }
@@ -83,33 +98,48 @@ readonly class TableGateway
     /**
      * Retrieves rows from a database table based on the specified columns and optional WHERE clause.
      *
-     * @param string                                       $columns Columns to retrieve, defaults to '*'.
-     * @param list<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows to be retrieved.
-     * @param list<mixed>|array<string, mixed>             $params  Parameters to bind to the WHERE clause.
-     * @param array                                        $types   Parameter types for the bound parameters.
+     * @param list<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be retrieved.
+     * @param list<mixed>|array<string, mixed>             $params Parameters to bind to the WHERE clause.
+     * @param array                                        $types  Parameter types for the bound parameters.
      *
      * @throws Exception
      *
      * @phpstan-param WrapperParameterTypeArray            $types
      */
     public function select(
-        string $columns = '*',
         array|string|null $where = null,
         #[SensitiveParameter]
         array $params = [],
         array $types = [],
     ): Result {
-        return $this->buildQuery($columns, $where, $params, $types)->executeQuery();
+        $queryBuilder = $this->connection->createQueryBuilder();
+        $queryBuilder->select('*');
+        $queryBuilder->from($this->table);
+
+        if ($where) {
+            if (is_string($where)) {
+                $queryBuilder->where($where);
+            } elseif (array_is_list($where)) {
+                $queryBuilder->where(...$where);
+            } else {
+                throw new QueryException('Invalid WHERE clause!');
+            }
+
+            if ($params) {
+                $queryBuilder->setParameters($params, $types);
+            }
+        }
+
+        return $queryBuilder->executeQuery();
     }
 
     /**
      * Retrieves the first row from a database table based on the specified columns, with an optional WHERE clause and an optional strict mode to enforce a single row.
      *
-     * @param string                                       $columns Columns to retrieve, defaults to '*'.
-     * @param list<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows to be retrieved.
-     * @param list<mixed>|array<string, mixed>             $params  Parameters to bind to the WHERE clause.
-     * @param array                                        $types   Parameter types for the bound parameters.
-     * @param bool                                         $strict  Determines whether strict mode is enabled; if true, an exception is thrown for more than one row.
+     * @param list<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be retrieved.
+     * @param list<mixed>|array<string, mixed>             $params Parameters to bind to the WHERE clause.
+     * @param array                                        $types  Parameter types for the bound parameters.
+     * @param bool                                         $strict Determines whether strict mode is enabled; if true, an exception is thrown for more than one row.
      *
      * @return array<string, mixed>|null The first row of the query as an associative array, or NULL if no rows are found.
      * @throws ResultException           If strict mode is enabled and the query returns more than one row.
@@ -118,14 +148,13 @@ readonly class TableGateway
      * @phpstan-param WrapperParameterTypeArray            $types
      */
     public function selectFirst(
-        string $columns = '*',
         array|string|null $where = null,
         #[SensitiveParameter]
         array $params = [],
         array $types = [],
         bool $strict = false,
     ): ?array {
-        $result = $this->select($columns, $where, $params, $types);
+        $result = $this->select($where, $params, $types);
 
         if ($strict) {
             $rowCount = $result->rowCount();
@@ -151,46 +180,5 @@ readonly class TableGateway
     public function update(#[SensitiveParameter] array $data, array $criteria = [], array $types = []): int
     {
         return (int) $this->connection->update($this->table, $data, $criteria, $types);
-    }
-
-    /**
-     * Builds and configures a QueryBuilder object with the given columns, WHERE clause, parameters, and types.
-     *
-     * @param string                                       $columns Columns to retrieve.
-     * @param list<string|CompositeExpression>|string|null $where   SQL WHERE clause to filter the rows.
-     * @param list<mixed>|array<string, mixed>             $params  Parameters to bind to the WHERE clause.
-     * @param array                                        $types   Parameter types for the bound parameters.
-     *
-     * @return QueryBuilder The configured QueryBuilder object.
-     * @throws QueryException
-     *
-     * @phpstan-param WrapperParameterTypeArray            $types
-     */
-    private function buildQuery(
-        string $columns,
-        array|string|null $where = null,
-        #[SensitiveParameter]
-        array $params = [],
-        array $types = [],
-    ): QueryBuilder {
-        $queryBuilder = $this->connection->createQueryBuilder();
-        $queryBuilder->select($columns);
-        $queryBuilder->from($this->table);
-
-        if ($where) {
-            if (is_string($where)) {
-                $queryBuilder->where($where);
-            } elseif (array_is_list($where)) {
-                $queryBuilder->where(...$where);
-            } else {
-                throw new QueryException('Invalid WHERE clause');
-            }
-
-            if ($params) {
-                $queryBuilder->setParameters($params, $types);
-            }
-        }
-
-        return $queryBuilder;
     }
 }
