@@ -9,6 +9,7 @@ use BlackBonjour\TableGateway\ResultException;
 use BlackBonjour\TableGateway\TableGateway;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
+use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
 use PHPUnit\Framework\TestCase;
@@ -16,6 +17,199 @@ use Throwable;
 
 final class TableGatewayTest extends TestCase
 {
+    /**
+     * Verifies that the `bulkInsert` method inserts rows correctly and returns the total affected row count.
+     *
+     * @throws Throwable
+     */
+    public function testBulkInsert(): void
+    {
+        $platform = $this->createMock(AbstractPlatform::class);
+        $platform
+            ->expects($this->exactly(3))
+            ->method('quoteIdentifier')
+            ->willReturnCallback(static fn(string $identifier): string => sprintf('`%s`', $identifier));
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('executeStatement')
+            ->with(
+                'INSERT INTO `test_table` (`id`,`name`) VALUES (?,?),(?,?)',
+                [1, 'John Doe', 2, 'Jane Doe'],
+                [],
+            )
+            ->willReturn(2);
+
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($platform);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(
+            2,
+            $tableGateway->bulkInsert(
+                [
+                    ['id' => 1, 'name' => 'John Doe'],
+                    ['id' => 2, 'name' => 'Jane Doe'],
+                ],
+            ),
+        );
+    }
+
+    /**
+     * Verifies that the `bulkInsert` method throws an exception if columns in the rows do not match.
+     *
+     * @throws Throwable
+     */
+    public function testBulkInsertThrowsExceptionForMismatchedColumns(): void
+    {
+        $this->expectException(QueryException::class);
+        $this->expectExceptionCode(0);
+        $this->expectExceptionMessage('All rows must have the same columns!');
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->never())
+            ->method('executeStatement');
+
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($this->createMock(AbstractPlatform::class));
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+        $tableGateway->bulkInsert(
+            [
+                ['id' => 1, 'name' => 'John Doe'],
+                ['id' => 2], // Missing 'name' column
+            ],
+        );
+    }
+
+    /**
+     * Verifies that the `bulkInsert` method inserts/updates rows correctly and returns the total affected row count.
+     *
+     * @throws Throwable
+     */
+    public function testBulkInsertUpdateOnDuplicateKey(): void
+    {
+        $platform = $this->createMock(AbstractPlatform::class);
+        $platform
+            ->expects($this->exactly(6))
+            ->method('quoteIdentifier')
+            ->willReturnCallback(static fn(string $identifier): string => sprintf('`%s`', $identifier));
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('executeStatement')
+            ->with(
+                'INSERT INTO `test_table` (`id`,`name`)'
+                . ' VALUES (?,?),(?,?) AS `new`'
+                . ' ON DUPLICATE KEY UPDATE `id`=`new`.`id`,`name`=`new`.`name`',
+                [1, 'John Doe', 2, 'Jane Doe'],
+                [],
+            )
+            ->willReturn(2);
+
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($platform);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(
+            2,
+            $tableGateway->bulkInsert(
+                [
+                    ['id' => 1, 'name' => 'John Doe'],
+                    ['id' => 2, 'name' => 'Jane Doe'],
+                ],
+                updateOnDuplicateKey: true,
+            ),
+        );
+    }
+
+    /**
+     * Verifies that the `bulkInsert` method returns 0 when an empty array of rows is provided.
+     *
+     * @throws Throwable
+     */
+    public function testBulkInsertWithEmptyRows(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->never())
+            ->method('executeStatement');
+
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($this->createMock(AbstractPlatform::class));
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(0, $tableGateway->bulkInsert([]));
+    }
+
+    /**
+     * Verifies that the `bulkInsert` method correctly handles column types.
+     *
+     * @throws Throwable
+     */
+    public function testBulkInsertWithColumnTypes(): void
+    {
+        $platform = $this->createMock(AbstractPlatform::class);
+        $platform
+            ->expects($this->exactly(4))
+            ->method('quoteIdentifier')
+            ->willReturnCallback(static fn(string $identifier): string => sprintf('`%s`', $identifier));
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('executeStatement')
+            ->with(
+                'INSERT INTO `test_table` (`id`,`name`,`score`) VALUES (?,?,?),(?,?,?)',
+                [1, 'John Doe', 10.5, 2, 'Jane Doe', 12.0],
+                [
+                    ParameterType::INTEGER,
+                    ParameterType::STRING,
+                    ParameterType::STRING,
+                    ParameterType::INTEGER,
+                    ParameterType::STRING,
+                    ParameterType::STRING,
+                ],
+            )
+            ->willReturn(2);
+
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($platform);
+
+        $tableGateway = new TableGateway($connection, 'test_table');
+
+        self::assertEquals(
+            2,
+            $tableGateway->bulkInsert(
+                [
+                    ['id' => 1, 'name' => 'John Doe', 'score' => 10.5],
+                    ['id' => 2, 'name' => 'Jane Doe', 'score' => 12.0],
+                ],
+                [
+                    'id' => ParameterType::INTEGER,
+                    'name' => ParameterType::STRING,
+                    'score' => ParameterType::STRING,
+                ],
+            ),
+        );
+    }
+
     /**
      * Verifies the result of the `count` method when no WHERE clause is provided.
      *
@@ -310,30 +504,6 @@ final class TableGatewayTest extends TestCase
     }
 
     /**
-     * Verifies the `select` method retrieves specific columns without a WHERE clause.
-     *
-     * @throws Throwable
-     */
-    public function testSelectWithoutWhereClauseAndSpecificColumns(): void
-    {
-        $result = $this->createMock(Result::class);
-
-        $queryBuilder = $this->createMock(QueryBuilder::class);
-        $queryBuilder->expects($this->once())->method('select')->with('id, name, email');
-        $queryBuilder->expects($this->once())->method('from')->with('test_table');
-        $queryBuilder->expects($this->never())->method('where');
-        $queryBuilder->expects($this->never())->method('setParameters');
-        $queryBuilder->expects($this->once())->method('executeQuery')->willReturn($result);
-
-        $connection = $this->createMock(Connection::class);
-        $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
-
-        $tableGateway = new TableGateway($connection, 'test_table');
-
-        self::assertEquals($result, $tableGateway->select('id, name, email'));
-    }
-
-    /**
      * Verifies the `select` method with a WHERE clause and bound parameters.
      *
      * @throws Throwable
@@ -354,7 +524,7 @@ final class TableGatewayTest extends TestCase
 
         $tableGateway = new TableGateway($connection, 'test_table');
 
-        self::assertEquals($result, $tableGateway->select('*', 'is_active = :active', ['active' => 1]));
+        self::assertEquals($result, $tableGateway->select('is_active = :active', ['active' => 1]));
     }
 
     /**
@@ -383,7 +553,7 @@ final class TableGatewayTest extends TestCase
 
         self::assertEquals(
             $result,
-            $tableGateway->select('*', 'id = :id', ['id' => 42], ['id' => ParameterType::INTEGER]),
+            $tableGateway->select('id = :id', ['id' => 42], ['id' => ParameterType::INTEGER]),
         );
     }
 
@@ -558,7 +728,7 @@ final class TableGatewayTest extends TestCase
 
         $tableGateway = new TableGateway($connection, 'test_table');
 
-        self::assertEquals(['id' => 2, 'name' => 'Jane Doe'], $tableGateway->selectFirst('*', 'id = :id', ['id' => 2]));
+        self::assertEquals(['id' => 2, 'name' => 'Jane Doe'], $tableGateway->selectFirst('id = :id', ['id' => 2]));
     }
 
     /**

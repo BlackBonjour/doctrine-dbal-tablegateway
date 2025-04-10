@@ -7,6 +7,7 @@ namespace BlackBonjour\TableGateway;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
+use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Query\Expression\CompositeExpression;
 use Doctrine\DBAL\Result;
 use Doctrine\DBAL\Types\Type;
@@ -17,10 +18,76 @@ use SensitiveParameter;
  */
 readonly class TableGateway
 {
+    public AbstractPlatform $platform;
+
+    /**
+     * @throws Exception
+     */
     public function __construct(
         public Connection $connection,
         public string $table,
-    ) {}
+    ) {
+        $this->platform = $connection->getDatabasePlatform();
+    }
+
+    /**
+     * @param list<non-empty-array<string, mixed>>     $rows
+     * @param array<string, string|ParameterType|Type> $columnTypes
+     *
+     * @throws Exception
+     * @throws QueryException
+     */
+    public function bulkInsert(
+        #[SensitiveParameter]
+        array $rows,
+        array $columnTypes = [],
+        bool $updateOnDuplicateKey = false,
+        array $updateColumns = [],
+    ): int {
+        if (empty($rows)) {
+            return 0;
+        }
+
+        $columnNames = null;
+        $params = [];
+        $types = [];
+        $values = [];
+
+        foreach ($rows as $row) {
+            if ($columnNames === null) {
+                $columnNames = array_keys($row);
+            } elseif (array_keys($row) !== $columnNames) {
+                throw new QueryException('All rows must have the same columns!');
+            }
+
+            $values[] = sprintf('(%s)', implode(',', array_fill(0, count($row), '?')));
+
+            foreach ($row as $column => $value) {
+                $params[] = $value;
+
+                if ($columnTypes) {
+                    $types[] = $columnTypes[$column] ?? ParameterType::STRING;
+                }
+            }
+        }
+
+        $columns = implode(',', array_map($this->platform->quoteIdentifier(...), $columnNames));
+        $tableName = $this->platform->quoteIdentifier($this->table);
+
+        $sql = sprintf(/** @lang text */ 'INSERT INTO %s (%s) VALUES %s', $tableName, $columns, implode(',', $values));
+
+        if ($updateOnDuplicateKey) {
+            $alias = $this->platform->quoteIdentifier('new');
+            $updateColumns = array_map(
+                fn(string $column): string => sprintf('%2$s=%s.%2$s', $alias, $this->platform->quoteIdentifier($column)),
+                $updateColumns ?: $columnNames,
+            );
+
+            $sql .= sprintf(' AS %s ON DUPLICATE KEY UPDATE %s', $alias, implode(',', $updateColumns));
+        }
+
+        return (int) $this->connection->executeStatement($sql, $params, $types);
+    }
 
     /**
      * Counts the number of rows in a database table, optionally applying a conditional WHERE clause.
