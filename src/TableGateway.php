@@ -9,6 +9,7 @@ use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Query\Expression\CompositeExpression;
+use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
 use Doctrine\DBAL\Types\Type;
 use SensitiveParameter;
@@ -79,7 +80,11 @@ readonly class TableGateway
         if ($updateOnDuplicateKey) {
             $alias = $this->platform->quoteIdentifier('new');
             $updateColumns = array_map(
-                fn(string $column): string => sprintf('%2$s=%s.%2$s', $alias, $this->platform->quoteIdentifier($column)),
+                fn(string $column): string => sprintf(
+                    '%2$s=%s.%2$s',
+                    $alias,
+                    $this->platform->quoteIdentifier($column),
+                ),
                 $updateColumns ?: $columnNames,
             );
 
@@ -107,25 +112,20 @@ readonly class TableGateway
         array $params = [],
         array $types = [],
     ): int {
-        $queryBuilder = $this->connection->createQueryBuilder();
+        $queryBuilder = $this->createQueryBuilder();
         $queryBuilder->select('COUNT(1)');
-        $queryBuilder->from($this->table);
 
-        if ($where) {
-            if (is_string($where)) {
-                $queryBuilder->where($where);
-            } elseif (array_is_list($where)) {
-                $queryBuilder->where(...$where);
-            } else {
-                throw new QueryException('Invalid WHERE clause!');
-            }
-
-            if ($params) {
-                $queryBuilder->setParameters($params, $types);
-            }
-        }
+        $this->applyWhere($queryBuilder, $where, $params, $types);;
 
         return (int) ($queryBuilder->executeQuery()->fetchFirstColumn()[0] ?? 0);
+    }
+
+    public function createQueryBuilder(): QueryBuilder
+    {
+        $queryBuilder = $this->connection->createQueryBuilder();
+        $queryBuilder->from($this->table);
+
+        return $queryBuilder;
     }
 
     /**
@@ -179,23 +179,10 @@ readonly class TableGateway
         array $params = [],
         array $types = [],
     ): Result {
-        $queryBuilder = $this->connection->createQueryBuilder();
+        $queryBuilder = $this->createQueryBuilder();
         $queryBuilder->select('*');
-        $queryBuilder->from($this->table);
 
-        if ($where) {
-            if (is_string($where)) {
-                $queryBuilder->where($where);
-            } elseif (array_is_list($where)) {
-                $queryBuilder->where(...$where);
-            } else {
-                throw new QueryException('Invalid WHERE clause!');
-            }
-
-            if ($params) {
-                $queryBuilder->setParameters($params, $types);
-            }
-        }
+        $this->applyWhere($queryBuilder, $where, $params, $types);
 
         return $queryBuilder->executeQuery();
     }
@@ -247,5 +234,36 @@ readonly class TableGateway
     public function update(#[SensitiveParameter] array $data, array $criteria = [], array $types = []): int
     {
         return (int) $this->connection->update($this->table, $data, $criteria, $types);
+    }
+
+    /**
+     * @param list<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be retrieved.
+     * @param list<mixed>|array<string, mixed>             $params Parameters to bind to the WHERE clause.
+     * @param array                                        $types  Parameter types for the bound parameters.
+     *
+     * @throws QueryException
+     */
+    private function applyWhere(
+        QueryBuilder $queryBuilder,
+        array|string|null $where,
+        #[SensitiveParameter]
+        array $params = [],
+        array $types = [],
+    ): void {
+        if ($where === null) {
+            return;
+        }
+
+        if (is_string($where)) {
+            $queryBuilder->where($where);
+        } elseif (array_is_list($where)) {
+            $queryBuilder->where(...$where);
+        } else {
+            throw new QueryException('Invalid WHERE clause!');
+        }
+
+        if ($params) {
+            $queryBuilder->setParameters($params, $types);
+        }
     }
 }
