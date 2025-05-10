@@ -25,6 +25,8 @@ use SensitiveParameter;
 readonly class TableGateway
 {
     public AbstractPlatform $platform;
+    public QueryFactoryInterface $queryFactory;
+    public TableManagerInterface $tableManager;
 
     /**
      * @throws Exception
@@ -32,31 +34,12 @@ readonly class TableGateway
     public function __construct(
         public Connection $connection,
         public string $table,
-        public TableManagerInterface $tableManager,
+        ?QueryFactoryInterface $queryFactory = null,
+        ?TableManagerInterface $tableManager = null,
     ) {
         $this->platform = $connection->getDatabasePlatform();
-    }
-
-    /**
-     * Creates a new TableGateway instance with an optional TableManagerInterface.
-     *
-     * @param Connection                 $connection   The database connection.
-     * @param string                     $table        The table name.
-     * @param TableManagerInterface|null $tableManager The table manager (optional).
-     *
-     * @return self A new TableGateway instance.
-     * @throws Exception
-     */
-    public static function create(
-        Connection $connection,
-        string $table,
-        ?TableManagerInterface $tableManager = null,
-    ): self {
-        return new self(
-            $connection,
-            $table,
-            $tableManager ?? new TableManager($connection),
-        );
+        $this->queryFactory = $queryFactory ?? new QueryFactory($connection);
+        $this->tableManager = $tableManager ?? new TableManager($connection);
     }
 
     /**
@@ -77,9 +60,9 @@ readonly class TableGateway
         bool $updateOnDuplicateKey = false,
         array $updateColumns = [],
     ): int {
-        $bulkInsert = new BulkInsert($this->connection);
-
-        return $bulkInsert->insert($this->table, $rows, $columnTypes, $updateOnDuplicateKey, $updateColumns);
+        return $this->queryFactory
+            ->createBulkInsert()
+            ->insert($this->table, $rows, $columnTypes, $updateOnDuplicateKey, $updateColumns);
     }
 
     /**
@@ -153,18 +136,25 @@ readonly class TableGateway
         );
 
         // Insert data into the temporary table
-        $bulkInsert = new BulkInsert($this->connection);
-        $bulkInsert->insert($tempTableName, $rows, $columnTypes);
+        $this->queryFactory->createBulkInsert()->insert($tempTableName, $rows, $columnTypes);
 
         // Update the actual table by joining with the temporary table
+        $quotedTable = $this->platform->quoteIdentifier('t1');
+        $quotedTempTable = $this->platform->quoteIdentifier('t2');
+
         $joinConditions = array_map(
-            fn(string $column): string => sprintf('t1.%1$s = t2.%1$s', $this->platform->quoteIdentifier($column)),
+            fn(string $column): string => sprintf(
+                '%2$s.%1$s = %3$s.%1$s',
+                $this->platform->quoteIdentifier($column),
+                $quotedTable,
+                $quotedTempTable,
+            ),
             $joinColumns,
         );
 
         $queryBuilder = $this->connection->createQueryBuilder();
-        $queryBuilder->update(sprintf('%s AS t1', $this->table));
-        $queryBuilder->innerJoin('t1', $tempTableName, 't2', implode(' AND ', $joinConditions));
+        $queryBuilder->update(sprintf('%s AS %s', $this->platform->quoteIdentifier($this->table), $quotedTable));
+        $queryBuilder->innerJoin($quotedTable, $tempTableName, $quotedTempTable, implode(' AND ', $joinConditions));
 
         foreach ($columnNames as $column) {
             // Skip join columns in the SET clause
@@ -173,7 +163,10 @@ readonly class TableGateway
             }
 
             $quotedColumn = $this->platform->quoteIdentifier($column);
-            $queryBuilder->set(sprintf('t1.%s', $quotedColumn), sprintf('t2.%s', $quotedColumn));
+            $queryBuilder->set(
+                sprintf('%s.%s', $quotedTable, $quotedColumn),
+                sprintf('%s.%s', $quotedTempTable, $quotedColumn),
+            );
         }
 
         $affectedRows = $queryBuilder->executeStatement();

@@ -4,19 +4,178 @@ declare(strict_types=1);
 
 namespace BlackBonjourTest\TableGateway;
 
+use BlackBonjour\TableGateway\BulkInsert;
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use BlackBonjour\TableGateway\Exception\ResultException;
+use BlackBonjour\TableGateway\QueryFactoryInterface;
 use BlackBonjour\TableGateway\TableGateway;
 use BlackBonjour\TableGateway\TableManagerInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
+use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
+use Doctrine\DBAL\Schema\Column;
+use Doctrine\DBAL\Schema\Index;
+use Doctrine\DBAL\Types\Type;
+use Doctrine\DBAL\Types\Types;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
 final class TableGatewayTest extends TestCase
 {
+    /**
+     * Verifies the `bulkInsert` method that the correct number of rows is inserted into the database.
+     *
+     * @throws Throwable
+     */
+    public function testBulkInsert(): void
+    {
+        // Mock dependencies
+        $bulkInsert = $this->createMock(BulkInsert::class);
+        $bulkInsert
+            ->expects($this->once())
+            ->method('insert')
+            ->with(
+                'test_table',
+                [['id' => 1, 'name' => 'John'], ['id' => 2, 'name' => 'Jane']],
+                ['id' => ParameterType::INTEGER],
+                true,
+                ['name'],
+            )
+            ->willReturn(2);
+
+        $queryFactory = $this->createMock(QueryFactoryInterface::class);
+        $queryFactory
+            ->expects($this->once())
+            ->method('createBulkInsert')
+            ->willReturn($bulkInsert);
+
+        // Test case
+        $tableGateway = new TableGateway(
+            $this->createMock(Connection::class),
+            'test_table',
+            $queryFactory,
+            $this->createMock(TableManagerInterface::class),
+        );
+
+        self::assertSame(
+            2,
+            $tableGateway->bulkInsert(
+                [
+                    ['id' => 1, 'name' => 'John'],
+                    ['id' => 2, 'name' => 'Jane'],
+                ],
+                ['id' => ParameterType::INTEGER],
+                true,
+                ['name'],
+            ),
+        );
+    }
+
+    /**
+     * Verifies the result of the `bulkUpdate` method by updating the target table using a temporary table and ensuring
+     * the correct execution of the update logic.
+     *
+     * @throws Throwable
+     */
+    public function testBulkUpdate(): void
+    {
+        // Mock dependencies
+        $bulkInsert = $this->createMock(BulkInsert::class);
+        $bulkInsert
+            ->expects($this->once())
+            ->method('insert')
+            ->with(
+                self::stringContains('temp_test_table_'),
+                [
+                    ['id' => 1, 'name' => 'John'],
+                    ['id' => 2, 'name' => 'Jane'],
+                ],
+                ['id' => ParameterType::INTEGER],
+            )
+            ->willReturn(2);
+
+        $queryFactory = $this->createMock(QueryFactoryInterface::class);
+        $queryFactory
+            ->expects($this->once())
+            ->method('createBulkInsert')
+            ->willReturn($bulkInsert);
+
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+        $queryBuilder
+            ->expects($this->once())
+            ->method('executeStatement')
+            ->willReturn(2);
+
+        $queryBuilder
+            ->expects($this->once())
+            ->method('innerJoin')
+            ->with('`t1`', self::stringContains('temp_test_table_'), '`t2`', '`t1`.`id` = `t2`.`id`');
+
+        $queryBuilder
+            ->expects($this->once())
+            ->method('set')
+            ->with('`t1`.`name`', '`t2`.`name`');
+
+        $queryBuilder
+            ->expects($this->once())
+            ->method('update')
+            ->with('`test_table` AS `t1`');
+
+        $platform = $this->createMock(AbstractPlatform::class);
+        $platform
+            ->expects($this->atLeastOnce())
+            ->method('quoteIdentifier')
+            ->willReturnCallback(static fn($column): string => sprintf('`%s`', $column));
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('createQueryBuilder')
+            ->willReturn($queryBuilder);
+
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($platform);
+
+        $tableManager = $this->createMock(TableManagerInterface::class);
+        $tableManager
+            ->expects($this->once())
+            ->method('createTemporaryTable')
+            ->with(
+                self::stringContains('temp_test_table_'),
+                [
+                    new Column('id', Type::getType(Types::STRING)),
+                    new Column('name', Type::getType(Types::STRING)),
+                ],
+                [
+                    new Index('id', ['id']),
+                ],
+            );
+
+        $tableManager
+            ->expects($this->once())
+            ->method('dropTemporaryTable')
+            ->with(self::stringContains('temp_test_table_'), true);
+
+        // Test case
+        $tableGateway = new TableGateway($connection, 'test_table', $queryFactory, $tableManager);
+
+        self::assertSame(
+            2,
+            $tableGateway->bulkUpdate(
+                [
+                    ['id' => 1, 'name' => 'John'],
+                    ['id' => 2, 'name' => 'Jane'],
+                ],
+                ['id'],
+                ['id' => ParameterType::INTEGER],
+            ),
+        );
+    }
+
     /**
      * Verifies the result of the `count` method when no WHERE clause is provided.
      *
@@ -37,7 +196,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(5, $tableGateway->count());
     }
@@ -62,7 +226,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(0, $tableGateway->count());
     }
@@ -90,7 +259,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(5, $tableGateway->count('id = :id', ['id' => 10], ['id' => ParameterType::INTEGER]));
     }
@@ -115,7 +289,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(3, $tableGateway->count('id = :id', ['id' => 10]));
     }
@@ -140,7 +319,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(0, $tableGateway->count());
     }
@@ -159,7 +343,12 @@ final class TableGatewayTest extends TestCase
             ->with('test_table', ['id' => 1])
             ->willReturn(1);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(1, $tableGateway->delete(['id' => 1]));
     }
@@ -177,6 +366,7 @@ final class TableGatewayTest extends TestCase
         $tableGateway = new TableGateway(
             $this->createMock(Connection::class),
             'test_table',
+            $this->createMock(QueryFactoryInterface::class),
             $this->createMock(TableManagerInterface::class),
         );
 
@@ -197,7 +387,12 @@ final class TableGatewayTest extends TestCase
             ->with('test_table')
             ->willReturn(3);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(3, $tableGateway->delete(strict: false));
     }
@@ -216,7 +411,12 @@ final class TableGatewayTest extends TestCase
             ->with('test_table', ['id' => 42], ['id' => ParameterType::INTEGER])
             ->willReturn(1);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(1, $tableGateway->delete(['id' => 42], ['id' => ParameterType::INTEGER]));
     }
@@ -235,7 +435,12 @@ final class TableGatewayTest extends TestCase
             ->with('test_table', ['id' => 1, 'name' => 'John Doe'])
             ->willReturn(1);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(1, $tableGateway->insert(['id' => 1, 'name' => 'John Doe']));
     }
@@ -258,7 +463,12 @@ final class TableGatewayTest extends TestCase
             ->with('test_table', ['id' => 1, 'name' => 'Invalid'])
             ->willThrowException(new InvalidArgumentException('Insert operation failed!'));
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
         $tableGateway->insert(['id' => 1, 'name' => 'Invalid']);
     }
 
@@ -280,7 +490,12 @@ final class TableGatewayTest extends TestCase
             )
             ->willReturn(1);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(
             1,
@@ -310,7 +525,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals($result, $tableGateway->select());
     }
@@ -334,7 +554,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals($result, $tableGateway->select('is_active = :active', ['active' => 1]));
     }
@@ -361,7 +586,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(
             $result,
@@ -392,7 +622,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(['id' => 1, 'name' => 'John Doe'], $tableGateway->selectFirst());
     }
@@ -420,7 +655,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(
             ['id' => 4, 'status' => 'active'],
@@ -451,7 +691,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertNull($tableGateway->selectFirst());
     }
@@ -482,7 +727,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(['id' => 3, 'email' => 'example@test.com'], $tableGateway->selectFirst(strict: true));
     }
@@ -511,7 +761,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
         $tableGateway->selectFirst(strict: true);
     }
 
@@ -538,7 +793,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(['id' => 2, 'name' => 'Jane Doe'], $tableGateway->selectFirst('id = :id', ['id' => 2]));
     }
@@ -566,7 +826,12 @@ final class TableGatewayTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection->expects($this->once())->method('createQueryBuilder')->willReturn($queryBuilder);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertNull($tableGateway->selectFirst(where: 'username = :username', params: ['username' => 'testuser']));
     }
@@ -585,7 +850,12 @@ final class TableGatewayTest extends TestCase
             ->with('test_table', ['name' => 'Updated Name'], ['id' => 1])
             ->willReturn(1);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(1, $tableGateway->update(['name' => 'Updated Name'], ['id' => 1]));
     }
@@ -604,7 +874,12 @@ final class TableGatewayTest extends TestCase
             ->with('test_table', ['email' => 'updated@test.com'], ['id' => 999])
             ->willReturn(0);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(0, $tableGateway->update(['email' => 'updated@test.com'], ['id' => 999]));
     }
@@ -626,7 +901,12 @@ final class TableGatewayTest extends TestCase
             ->with('test_table', ['name' => 'Invalid Update'], ['id' => 1])
             ->willThrowException(new InvalidArgumentException('Update operation failed!'));
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
         $tableGateway->update(['name' => 'Invalid Update'], ['id' => 1]);
     }
 
@@ -649,7 +929,12 @@ final class TableGatewayTest extends TestCase
             )
             ->willReturn(1);
 
-        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
+        $tableGateway = new TableGateway(
+            $connection,
+            'test_table',
+            $this->createMock(QueryFactoryInterface::class),
+            $this->createMock(TableManagerInterface::class),
+        );
 
         self::assertEquals(
             1,
