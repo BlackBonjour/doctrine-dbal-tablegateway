@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BlackBonjourTest\TableGateway;
 
-use BlackBonjour\TableGateway\Exception\QueryException;
+use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use BlackBonjour\TableGateway\Exception\ResultException;
 use BlackBonjour\TableGateway\TableGateway;
 use BlackBonjour\TableGateway\TableManagerInterface;
@@ -171,7 +171,7 @@ final class TableGatewayTest extends TestCase
      */
     public function testDeleteThrowsExceptionWhenNoCriteriaProvidedAndStrict(): void
     {
-        $this->expectException(QueryException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('No criteria provided for deletion');
 
         $tableGateway = new TableGateway(
@@ -247,7 +247,7 @@ final class TableGatewayTest extends TestCase
      */
     public function testInsertThrowsExceptionOnFailure(): void
     {
-        $this->expectException(QueryException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionCode(0);
         $this->expectExceptionMessage('Insert operation failed!');
 
@@ -256,7 +256,7 @@ final class TableGatewayTest extends TestCase
             ->expects($this->once())
             ->method('insert')
             ->with('test_table', ['id' => 1, 'name' => 'Invalid'])
-            ->willThrowException(new QueryException('Insert operation failed!'));
+            ->willThrowException(new InvalidArgumentException('Insert operation failed!'));
 
         $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
         $tableGateway->insert(['id' => 1, 'name' => 'Invalid']);
@@ -616,7 +616,7 @@ final class TableGatewayTest extends TestCase
      */
     public function testUpdateThrowsExceptionOnFailure(): void
     {
-        $this->expectException(QueryException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Update operation failed!');
 
         $connection = $this->createMock(Connection::class);
@@ -624,7 +624,7 @@ final class TableGatewayTest extends TestCase
             ->expects($this->once())
             ->method('update')
             ->with('test_table', ['name' => 'Invalid Update'], ['id' => 1])
-            ->willThrowException(new QueryException('Update operation failed!'));
+            ->willThrowException(new InvalidArgumentException('Update operation failed!'));
 
         $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(TableManagerInterface::class));
         $tableGateway->update(['name' => 'Invalid Update'], ['id' => 1]);

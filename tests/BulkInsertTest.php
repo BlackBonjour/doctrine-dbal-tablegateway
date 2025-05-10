@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace BlackBonjourTest\TableGateway;
 
 use BlackBonjour\TableGateway\BulkInsert;
-use BlackBonjour\TableGateway\Exception\QueryException;
-use BlackBonjour\TableGateway\TableGateway;
+use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
@@ -67,7 +66,7 @@ final class BulkInsertTest extends TestCase
      */
     public function testInsertThrowsExceptionForMismatchedColumns(): void
     {
-        $this->expectException(QueryException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionCode(0);
         $this->expectExceptionMessage('All rows must have the same columns!');
 

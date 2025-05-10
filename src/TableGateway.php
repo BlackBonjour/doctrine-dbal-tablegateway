@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BlackBonjour\TableGateway;
 
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
-use BlackBonjour\TableGateway\Exception\QueryException;
 use BlackBonjour\TableGateway\Exception\ResultException;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
@@ -69,7 +68,7 @@ readonly class TableGateway
      *
      * @return int The number of affected rows.
      * @throws Exception
-     * @throws QueryException
+     * @throws InvalidArgumentException
      */
     public function bulkInsert(
         #[SensitiveParameter]
@@ -93,7 +92,6 @@ readonly class TableGateway
      * @return int The number of affected rows.
      * @throws Exception
      * @throws InvalidArgumentException
-     * @throws QueryException
      */
     public function bulkUpdate(
         #[SensitiveParameter]
@@ -232,12 +230,12 @@ readonly class TableGateway
      *
      * @return int The number of rows deleted.
      * @throws Exception
-     * @throws QueryException If no criteria are provided and $strict is true.
+     * @throws InvalidArgumentException If no criteria are provided and $strict is true.
      */
     public function delete(array $criteria = [], array $types = [], bool $strict = true): int
     {
         if ($strict && empty($criteria)) {
-            throw new QueryException('No criteria provided for deletion!');
+            throw new InvalidArgumentException('No criteria provided for deletion!');
         }
 
         return (int) $this->connection->delete($this->table, $criteria, $types);
@@ -336,7 +334,7 @@ readonly class TableGateway
      * @param list<mixed>|array<string, mixed>             $params Parameters to bind to the WHERE clause.
      * @param array                                        $types  Parameter types for the bound parameters.
      *
-     * @throws QueryException
+     * @throws InvalidArgumentException
      *
      * @phpstan-param WrapperParameterTypeArray            $types
      */
@@ -356,7 +354,7 @@ readonly class TableGateway
         } elseif (array_is_list($where)) {
             $queryBuilder->where(...$where);
         } else {
-            throw new QueryException('Invalid WHERE clause!');
+            throw new InvalidArgumentException('Invalid WHERE clause!');
         }
 
         if ($params) {

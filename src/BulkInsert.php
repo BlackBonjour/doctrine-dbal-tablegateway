@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BlackBonjour\TableGateway;
 
-use BlackBonjour\TableGateway\Exception\QueryException;
+use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
@@ -39,7 +39,7 @@ readonly class BulkInsert
      *
      * @return int The number of affected rows.
      * @throws Exception
-     * @throws QueryException
+     * @throws InvalidArgumentException
      */
     public function insert(
         string $table,
@@ -62,7 +62,7 @@ readonly class BulkInsert
             if ($columnNames === null) {
                 $columnNames = array_keys($row);
             } elseif (array_keys($row) !== $columnNames) {
-                throw new QueryException('All rows must have the same columns!');
+                throw new InvalidArgumentException('All rows must have the same columns!');
             }
 
             $values[] = sprintf('(%s)', implode(',', array_fill(0, count($row), '?')));
