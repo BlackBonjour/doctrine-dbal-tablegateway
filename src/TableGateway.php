@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace BlackBonjour\TableGateway;
 
+use BlackBonjour\TableGateway\Exception\QueryException;
+use BlackBonjour\TableGateway\Exception\ResultException;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
