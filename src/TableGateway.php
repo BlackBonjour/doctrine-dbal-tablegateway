@@ -139,10 +139,7 @@ readonly class TableGateway
                 if ($columnType instanceof Type) {
                     $type = $columnType;
                 } elseif (is_string($columnType)) {
-                    try {
-                        $type = Type::getType($columnType);
-                    } catch (Exception) {
-                    }
+                    $type = Type::getType($columnType);
                 }
             }
 

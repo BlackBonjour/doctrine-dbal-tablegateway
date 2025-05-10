@@ -85,7 +85,7 @@ readonly class BulkInsert
             $alias = $this->platform->quoteIdentifier('new');
             $updateColumns = array_map(
                 fn(string $column): string => sprintf(
-                    '%2$s=%s.%2$s',
+                    '%2$s=%1$s.%2$s',
                     $alias,
                     $this->platform->quoteIdentifier($column),
                 ),
