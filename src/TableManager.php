@@ -28,7 +28,7 @@ readonly class TableManager implements TableManagerInterface
     }
 
     public function createTable(
-        string $tableName,
+        string $name,
         #[SensitiveParameter]
         array $columns,
         array $indexes = [],
@@ -41,7 +41,7 @@ readonly class TableManager implements TableManagerInterface
         }
 
         $sqlStatements = $this->platform->getCreateTableSQL(
-            new Table($tableName, $columns, $indexes, $uniqueConstraints, $fkConstraints, $options),
+            new Table($name, $columns, $indexes, $uniqueConstraints, $fkConstraints, $options),
         );
 
         foreach ($sqlStatements as $sql) {
@@ -52,7 +52,7 @@ readonly class TableManager implements TableManagerInterface
     }
 
     public function createTemporaryTable(
-        string $tableName,
+        string $name,
         #[SensitiveParameter]
         array $columns,
         array $indexes = [],
@@ -65,7 +65,7 @@ readonly class TableManager implements TableManagerInterface
         }
 
         $sqlStatements = $this->platform->getCreateTableSQL(
-            new Table($tableName, $columns, $indexes, $uniqueConstraints, $fkConstraints, $options),
+            new Table($name, $columns, $indexes, $uniqueConstraints, $fkConstraints, $options),
         );
 
         foreach ($sqlStatements as $sql) {
@@ -80,9 +80,9 @@ readonly class TableManager implements TableManagerInterface
         return true;
     }
 
-    public function dropTable(string $tableName, bool $ifExists = false): bool
+    public function dropTable(string $name, bool $ifExists = false): bool
     {
-        $quotedTableName = $this->platform->quoteIdentifier($tableName);
+        $quotedTableName = $this->platform->quoteIdentifier($name);
 
         if ($ifExists) {
             // Since Platform::getDropTableSQL doesn't support IF EXISTS, we need to construct the SQL manually
@@ -97,9 +97,9 @@ readonly class TableManager implements TableManagerInterface
         return true;
     }
 
-    public function dropTemporaryTable(string $tableName, bool $ifExists = false): bool
+    public function dropTemporaryTable(string $name, bool $ifExists = false): bool
     {
-        $quotedTableName = $this->platform->quoteIdentifier($tableName);
+        $quotedTableName = $this->platform->quoteIdentifier($name);
 
         if ($ifExists) {
             // Construct the SQL manually with IF EXISTS clause

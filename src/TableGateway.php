@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BlackBonjour\TableGateway;
 
+use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use BlackBonjour\TableGateway\Exception\QueryException;
 use BlackBonjour\TableGateway\Exception\ResultException;
 use Doctrine\DBAL\Connection;
@@ -13,7 +14,10 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Query\Expression\CompositeExpression;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
+use Doctrine\DBAL\Schema\Column;
+use Doctrine\DBAL\Schema\Index;
 use Doctrine\DBAL\Types\Type;
+use Doctrine\DBAL\Types\Types;
 use SensitiveParameter;
 
 /**
@@ -29,14 +33,41 @@ readonly class TableGateway
     public function __construct(
         public Connection $connection,
         public string $table,
+        public TableManagerInterface $tableManager,
     ) {
         $this->platform = $connection->getDatabasePlatform();
     }
 
     /**
+     * Creates a new TableGateway instance with an optional TableManagerInterface.
+     *
+     * @param Connection                 $connection   The database connection.
+     * @param string                     $table        The table name.
+     * @param TableManagerInterface|null $tableManager The table manager (optional).
+     *
+     * @return self A new TableGateway instance.
+     * @throws Exception
+     */
+    public static function create(
+        Connection $connection,
+        string $table,
+        ?TableManagerInterface $tableManager = null,
+    ): self {
+        return new self(
+            $connection,
+            $table,
+            $tableManager ?? new TableManager($connection),
+        );
+    }
+
+    /**
+     * Performs a bulk insert operation.
+     *
      * @param list<non-empty-array<string, mixed>>     $rows
      * @param array<string, string|ParameterType|Type> $columnTypes
+     * @param list<string>                             $updateColumns
      *
+     * @return int The number of affected rows.
      * @throws Exception
      * @throws QueryException
      */
@@ -47,53 +78,115 @@ readonly class TableGateway
         bool $updateOnDuplicateKey = false,
         array $updateColumns = [],
     ): int {
+        $bulkInsert = new BulkInsert($this->connection);
+
+        return $bulkInsert->insert($this->table, $rows, $columnTypes, $updateOnDuplicateKey, $updateColumns);
+    }
+
+    /**
+     * Performs a bulk update operation using a temporary table.
+     *
+     * @param list<non-empty-array<string, mixed>>     $rows        The rows to be used for updating the table.
+     * @param list<string>                             $joinColumns The columns to use for joining the temporary table with the actual table.
+     * @param array<string, string|ParameterType|Type> $columnTypes The types of the columns in the temporary table.
+     *
+     * @return int The number of affected rows.
+     * @throws Exception
+     * @throws InvalidArgumentException
+     * @throws QueryException
+     */
+    public function bulkUpdate(
+        #[SensitiveParameter]
+        array $rows,
+        array $joinColumns,
+        array $columnTypes = [],
+    ): int {
         if (empty($rows)) {
             return 0;
         }
 
+        // Validate columns
+        if (empty($joinColumns)) {
+            throw new InvalidArgumentException('Join columns must be specified for bulk update!');
+        }
+
         $columnNames = null;
-        $params = [];
-        $types = [];
-        $values = [];
 
         foreach ($rows as $row) {
             if ($columnNames === null) {
                 $columnNames = array_keys($row);
             } elseif (array_keys($row) !== $columnNames) {
-                throw new QueryException('All rows must have the same columns!');
+                throw new InvalidArgumentException('All rows must have the same columns!');
             }
+        }
 
-            $values[] = sprintf('(%s)', implode(',', array_fill(0, count($row), '?')));
+        if (array_intersect($joinColumns, $columnNames) !== $joinColumns) {
+            throw new InvalidArgumentException('Join columns must be a subset of the columns in the rows!');
+        }
 
-            foreach ($row as $column => $value) {
-                $params[] = $value;
+        if (empty(array_diff($columnNames, $joinColumns))) {
+            throw new InvalidArgumentException('Rows must not only contain join columns!');
+        }
 
-                if ($columnTypes) {
-                    $types[] = $columnTypes[$column] ?? ParameterType::STRING;
+        // Create a temporary table using TableManager
+        $columns = [];
+        $tempTableName = sprintf('temp_%s_%s', $this->table, uniqid());
+
+        foreach ($columnNames as $column) {
+            $type = Type::getType(Types::STRING); // Default column type
+
+            if (isset($columnTypes[$column])) {
+                $columnType = $columnTypes[$column];
+
+                if ($columnType instanceof Type) {
+                    $type = $columnType;
+                } elseif (is_string($columnType)) {
+                    try {
+                        $type = Type::getType($columnType);
+                    } catch (Exception) {
+                    }
                 }
             }
+
+            $columns[] = new Column($column, $type);
         }
 
-        $columns = implode(',', array_map($this->platform->quoteIdentifier(...), $columnNames));
-        $tableName = $this->platform->quoteIdentifier($this->table);
+        $this->tableManager->createTemporaryTable(
+            name: $tempTableName,
+            columns: $columns,
+            indexes: array_map(static fn(string $column): Index => new Index($column, [$column]), $joinColumns),
+        );
 
-        $sql = sprintf(/** @lang text */ 'INSERT INTO %s (%s) VALUES %s', $tableName, $columns, implode(',', $values));
+        // Insert data into the temporary table
+        $bulkInsert = new BulkInsert($this->connection);
+        $bulkInsert->insert($tempTableName, $rows, $columnTypes);
 
-        if ($updateOnDuplicateKey) {
-            $alias = $this->platform->quoteIdentifier('new');
-            $updateColumns = array_map(
-                fn(string $column): string => sprintf(
-                    '%2$s=%s.%2$s',
-                    $alias,
-                    $this->platform->quoteIdentifier($column),
-                ),
-                $updateColumns ?: $columnNames,
-            );
+        // Update the actual table by joining with the temporary table
+        $joinConditions = array_map(
+            fn(string $column): string => sprintf('t1.%1$s = t2.%1$s', $this->platform->quoteIdentifier($column)),
+            $joinColumns,
+        );
 
-            $sql .= sprintf(' AS %s ON DUPLICATE KEY UPDATE %s', $alias, implode(',', $updateColumns));
+        $queryBuilder = $this->connection->createQueryBuilder();
+        $queryBuilder->update(sprintf('%s AS t1', $this->table));
+        $queryBuilder->innerJoin('t1', $tempTableName, 't2', implode(' AND ', $joinConditions));
+
+        foreach ($columnNames as $column) {
+            // Skip join columns in the SET clause
+            if (in_array($column, $joinColumns, true)) {
+                continue;
+            }
+
+            $quotedColumn = $this->platform->quoteIdentifier($column);
+            $queryBuilder->set(sprintf('t1.%s', $quotedColumn), sprintf('t2.%s', $quotedColumn));
         }
 
-        return (int) $this->connection->executeStatement($sql, $params, $types);
+        $affectedRows = $queryBuilder->executeStatement();
+
+        // Drop the temporary table using TableManager
+        $this->tableManager->dropTemporaryTable($tempTableName, true);
+
+        return (int) $affectedRows;
     }
 
     /**
@@ -117,7 +210,7 @@ readonly class TableGateway
         $queryBuilder = $this->createQueryBuilder();
         $queryBuilder->select('COUNT(1)');
 
-        $this->applyWhere($queryBuilder, $where, $params, $types);;
+        $this->applyWhere($queryBuilder, $where, $params, $types);
 
         return (int) ($queryBuilder->executeQuery()->fetchFirstColumn()[0] ?? 0);
     }
@@ -144,7 +237,7 @@ readonly class TableGateway
     public function delete(array $criteria = [], array $types = [], bool $strict = true): int
     {
         if ($strict && empty($criteria)) {
-            throw new QueryException('No criteria provided for deletion');
+            throw new QueryException('No criteria provided for deletion!');
         }
 
         return (int) $this->connection->delete($this->table, $criteria, $types);
@@ -195,7 +288,7 @@ readonly class TableGateway
      * @param list<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be retrieved.
      * @param list<mixed>|array<string, mixed>             $params Parameters to bind to the WHERE clause.
      * @param array                                        $types  Parameter types for the bound parameters.
-     * @param bool                                         $strict Determines whether strict mode is enabled; if true, an exception is thrown for more than one row.
+     * @param bool                                         $strict Determines whether a strict mode is enabled; if true, an exception is thrown for more than one row.
      *
      * @return array<string, mixed>|null The first row of the query as an associative array, or NULL if no rows are found.
      * @throws ResultException           If strict mode is enabled and the query returns more than one row.
@@ -216,7 +309,7 @@ readonly class TableGateway
             $rowCount = $result->rowCount();
 
             if ($rowCount > 1) {
-                throw new ResultException(sprintf('Expected exactly one row, but got %d rows', $rowCount));
+                throw new ResultException(sprintf('Expected exactly one row, but got %d rows!', $rowCount));
             }
         }
 
@@ -244,6 +337,8 @@ readonly class TableGateway
      * @param array                                        $types  Parameter types for the bound parameters.
      *
      * @throws QueryException
+     *
+     * @phpstan-param WrapperParameterTypeArray            $types
      */
     private function applyWhere(
         QueryBuilder $queryBuilder,

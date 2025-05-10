@@ -20,7 +20,7 @@ interface TableManagerInterface
     /**
      * Creates a new database table with the specified name and columns.
      *
-     * @param string                      $tableName         The name of the table to create.
+     * @param string                      $name              The name of the table to create.
      * @param array<Column>               $columns           The columns to add to the table.
      * @param array<Index>                $indexes           The indexes to add to the table.
      * @param array<UniqueConstraint>     $uniqueConstraints The unique constraints to add to the table.
@@ -32,7 +32,7 @@ interface TableManagerInterface
      * @throws InvalidArgumentException When no columns are provided (empty columns array).
      */
     public function createTable(
-        string $tableName,
+        string $name,
         #[SensitiveParameter]
         array $columns,
         array $indexes = [],
@@ -44,7 +44,7 @@ interface TableManagerInterface
     /**
      * Creates a new temporary table with the specified name and columns.
      *
-     * @param string                      $tableName         The name of the temporary table to create.
+     * @param string                      $name              The name of the temporary table to create.
      * @param array<Column>               $columns           The columns to add to the table.
      * @param array<Index>                $indexes           The indexes to add to the table.
      * @param array<UniqueConstraint>     $uniqueConstraints The unique constraints to add to the table.
@@ -56,7 +56,7 @@ interface TableManagerInterface
      * @throws InvalidArgumentException When no columns are provided (empty columns array).
      */
     public function createTemporaryTable(
-        string $tableName,
+        string $name,
         #[SensitiveParameter]
         array $columns,
         array $indexes = [],
@@ -68,22 +68,22 @@ interface TableManagerInterface
     /**
      * Drops a database table with the specified name.
      *
-     * @param string $tableName The name of the table to drop.
-     * @param bool   $ifExists  Whether to add an IF EXISTS clause to the DROP TABLE statement.
+     * @param string $name     The name of the table to drop.
+     * @param bool   $ifExists Whether to add an IF EXISTS clause to the DROP TABLE statement.
      *
      * @return bool True if the table was dropped successfully, false otherwise.
      * @throws Exception When a database error occurs during table deletion or if the table doesn't exist (when ifExists is false).
      */
-    public function dropTable(string $tableName, bool $ifExists = false): bool;
+    public function dropTable(string $name, bool $ifExists = false): bool;
 
     /**
      * Drops a temporary table with the specified name.
      *
-     * @param string $tableName The name of the temporary table to drop.
-     * @param bool   $ifExists  Whether to add an IF EXISTS clause to the DROP TEMPORARY TABLE statement.
+     * @param string $name     The name of the temporary table to drop.
+     * @param bool   $ifExists Whether to add an IF EXISTS clause to the DROP TEMPORARY TABLE statement.
      *
      * @return bool True if the temporary table was dropped successfully, false otherwise.
      * @throws Exception When a database error occurs during temporary table deletion or if the temporary table doesn't exist (when ifExists is false).
      */
-    public function dropTemporaryTable(string $tableName, bool $ifExists = false): bool;
+    public function dropTemporaryTable(string $name, bool $ifExists = false): bool;
 }
