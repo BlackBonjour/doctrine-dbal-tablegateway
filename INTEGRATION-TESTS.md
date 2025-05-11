@@ -2,48 +2,66 @@
 
 This document describes how to set up and run integration tests for the doctrine-dbal-tablegateway library.
 
-## Docker Setup for Integration Testing
+## Setup for Integration Testing
 
-This repository includes Docker configuration for running integration tests with PHP 8.3 and MariaDB.
+This repository includes configuration for running integration tests with MariaDB.
 
 ### Prerequisites
 
 - Docker
 - Docker Compose
+- PHP 8.1 or higher with required extensions for Doctrine DBAL
 
 ### Setup
 
 1. Copy the distribution files to their actual names:
    ```bash
-   cp Dockerfile.dist Dockerfile
    cp docker-compose.yml.dist docker-compose.yml
+   cp .env.dist .env
+   ```
+
+2. Edit the `.env` file to set your database configuration:
+   ```
+   DB_DRIVER=pdo_mysql
+   DB_HOST=127.0.0.1
+   DB_NAME=tablegateway_test
+   DB_PORT=3306
+   DB_PASSWORD=your_password
+   DB_ROOT_PASSWORD=your_root_password
+   DB_USER=your_username
    ```
 
 ### Running Integration Tests
 
-To run the integration tests using Docker:
+To run the integration tests:
 
-```bash
-# Build and start the containers
-docker-compose up --build
+1. Start the MariaDB container:
+   ```bash
+   docker-compose up -d
+   ```
 
-# The tests will run automatically once the containers are up
-# To run tests again without rebuilding:
-docker-compose run php vendor/bin/phpunit
-```
+2. Run the PHPUnit tests:
+   ```bash
+   vendor/bin/phpunit --testsuite integration
+   ```
 
 ### Configuration
 
 The Docker setup includes:
 
-1. **PHP 8.3 Environment**: A Docker container with PHP 8.3 and all necessary extensions for Doctrine DBAL.
-2. **MariaDB 10.11**: A database server for integration testing.
+1. **MariaDB 11.4**: A database server for integration testing.
 
 ### Environment Variables
 
-The following environment variables are configured in the Docker setup:
+The integration tests use the following environment variables from your `.env` file:
 
-- `DATABASE_URL=mysql://user:password@mariadb:3306/tablegateway_test`
+- `DB_DRIVER`: Database driver (default: pdo_mysql)
+- `DB_HOST`: Database host (default: 127.0.0.1)
+- `DB_NAME`: Database name
+- `DB_PORT`: Database port (default: 3306)
+- `DB_PASSWORD`: Database password
+- `DB_USER`: Database username
+- `DB_ROOT_PASSWORD`: Database root password (for container setup)
 
 ### Integration Tests
 
@@ -57,12 +75,6 @@ These tests:
 - Test advanced queries with conditions, ordering, and limits
 - Test edge cases and error handling
 
-To run the integration tests:
-
-```bash
-docker-compose run php vendor/bin/phpunit tests/Integration
-```
-
 The integration tests demonstrate:
 - Connecting to the actual MariaDB database
 - Performing all TableGateway operations with real database queries
@@ -73,5 +85,5 @@ The integration tests demonstrate:
 
 You can modify the Docker configuration to suit your specific testing needs:
 
-- Edit `Dockerfile` to add PHP extensions or change PHP configuration
 - Edit `docker-compose.yml` to modify database settings or add additional services
+- Edit `.env` to change database connection parameters
