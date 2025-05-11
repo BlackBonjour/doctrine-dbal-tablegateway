@@ -2,18 +2,19 @@
 
 declare(strict_types=1);
 
-namespace BlackBonjour\TableGateway;
+namespace BlackBonjour\TableGateway\Query;
 
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Types\Type;
 use SensitiveParameter;
 
 /**
- * Class for handling bulk insert operations.
+ * Class for handling bulk insert operations. Currently only supports MySQL and MariaDB.
  */
 readonly class BulkInsert
 {
@@ -26,6 +27,10 @@ readonly class BulkInsert
         public Connection $connection,
     ) {
         $this->platform = $connection->getDatabasePlatform();
+
+        if (($this->platform instanceof AbstractMySQLPlatform) === false) {
+            throw new InvalidArgumentException('Bulk insert is only supported for MySQL and MariaDB platforms.');
+        }
     }
 
     /**
@@ -41,7 +46,7 @@ readonly class BulkInsert
      * @throws Exception
      * @throws InvalidArgumentException
      */
-    public function insert(
+    public function executeQuery(
         string $table,
         #[SensitiveParameter]
         array $rows,

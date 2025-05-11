@@ -2,27 +2,27 @@
 
 declare(strict_types=1);
 
-namespace BlackBonjourTest\TableGateway;
+namespace BlackBonjourTest\TableGateway\Query;
 
-use BlackBonjour\TableGateway\BulkInsert;
+use BlackBonjour\TableGateway\Query\BulkInsert;
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
-use Doctrine\DBAL\Platforms\AbstractPlatform;
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
 final class BulkInsertTest extends TestCase
 {
     /**
-     * Verifies that the `insert` method inserts rows correctly and returns the total affected row count.
+     * Verifies that the `executeQuery` method inserts rows correctly and returns the total affected row count.
      *
      * @throws Throwable
      */
     public function testInsert(): void
     {
         // Mock dependencies
-        $platform = $this->createMock(AbstractPlatform::class);
+        $platform = $this->createMock(AbstractMySQLPlatform::class);
         $platform
             ->expects($this->exactly(3))
             ->method('quoteIdentifier')
@@ -49,7 +49,7 @@ final class BulkInsertTest extends TestCase
 
         self::assertEquals(
             2,
-            $bulkInsert->insert(
+            $bulkInsert->executeQuery(
                 'test_table',
                 [
                     ['id' => 1, 'name' => 'John Doe'],
@@ -60,7 +60,7 @@ final class BulkInsertTest extends TestCase
     }
 
     /**
-     * Verifies that the `insert` method throws an exception if columns in the rows do not match.
+     * Verifies that the `executeQuery` method throws an exception if columns in the rows do not match.
      *
      * @throws Throwable
      */
@@ -79,11 +79,11 @@ final class BulkInsertTest extends TestCase
         $connection
             ->expects($this->once())
             ->method('getDatabasePlatform')
-            ->willReturn($this->createMock(AbstractPlatform::class));
+            ->willReturn($this->createMock(AbstractMySQLPlatform::class));
 
         // Test case
         $bulkInsert = new BulkInsert($connection);
-        $bulkInsert->insert(
+        $bulkInsert->executeQuery(
             'test_table',
             [
                 ['id' => 1, 'name' => 'John Doe'],
@@ -93,14 +93,14 @@ final class BulkInsertTest extends TestCase
     }
 
     /**
-     * Verifies that the `insert` method inserts/updates rows correctly and returns the total affected row count.
+     * Verifies that the `executeQuery` method inserts/updates rows correctly and returns the total affected row count.
      *
      * @throws Throwable
      */
     public function testInsertUpdateOnDuplicateKey(): void
     {
         // Mock dependencies
-        $platform = $this->createMock(AbstractPlatform::class);
+        $platform = $this->createMock(AbstractMySQLPlatform::class);
         $platform
             ->expects($this->exactly(6))
             ->method('quoteIdentifier')
@@ -129,7 +129,7 @@ final class BulkInsertTest extends TestCase
 
         self::assertEquals(
             2,
-            $bulkInsert->insert(
+            $bulkInsert->executeQuery(
                 'test_table',
                 [
                     ['id' => 1, 'name' => 'John Doe'],
@@ -141,7 +141,7 @@ final class BulkInsertTest extends TestCase
     }
 
     /**
-     * Verifies that the `insert` method returns 0 when an empty array of rows is provided.
+     * Verifies that the `executeQuery` method returns 0 when an empty array of rows is provided.
      *
      * @throws Throwable
      */
@@ -156,23 +156,23 @@ final class BulkInsertTest extends TestCase
         $connection
             ->expects($this->once())
             ->method('getDatabasePlatform')
-            ->willReturn($this->createMock(AbstractPlatform::class));
+            ->willReturn($this->createMock(AbstractMySQLPlatform::class));
 
         // Test case
         $bulkInsert = new BulkInsert($connection);
 
-        self::assertEquals(0, $bulkInsert->insert('test_table', []));
+        self::assertEquals(0, $bulkInsert->executeQuery('test_table', []));
     }
 
     /**
-     * Verifies that the `insert` method correctly handles column types.
+     * Verifies that the `executeQuery` method correctly handles column types.
      *
      * @throws Throwable
      */
     public function testInsertWithColumnTypes(): void
     {
         // Mock dependencies
-        $platform = $this->createMock(AbstractPlatform::class);
+        $platform = $this->createMock(AbstractMySQLPlatform::class);
         $platform
             ->expects($this->exactly(4))
             ->method('quoteIdentifier')
@@ -206,7 +206,7 @@ final class BulkInsertTest extends TestCase
 
         self::assertEquals(
             2,
-            $bulkInsert->insert(
+            $bulkInsert->executeQuery(
                 'test_table',
                 [
                     ['id' => 1, 'name' => 'John Doe', 'score' => 10.5],

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace BlackBonjour\TableGateway;
 
+use BlackBonjour\TableGateway\Query\BulkInsert;
+use BlackBonjour\TableGateway\Query\BulkUpdate;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 
@@ -22,5 +24,13 @@ readonly class QueryFactory implements QueryFactoryInterface
     public function createBulkInsert(): BulkInsert
     {
         return new BulkInsert($this->connection);
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function createBulkUpdate(): BulkUpdate
+    {
+        return new BulkUpdate($this->connection, $this);
     }
 }

@@ -13,10 +13,7 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Query\Expression\CompositeExpression;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
-use Doctrine\DBAL\Schema\Column;
-use Doctrine\DBAL\Schema\Index;
 use Doctrine\DBAL\Types\Type;
-use Doctrine\DBAL\Types\Types;
 use SensitiveParameter;
 
 /**
@@ -26,7 +23,6 @@ readonly class TableGateway
 {
     public AbstractPlatform $platform;
     public QueryFactoryInterface $queryFactory;
-    public TableManagerInterface $tableManager;
 
     /**
      * @throws Exception
@@ -35,11 +31,9 @@ readonly class TableGateway
         public Connection $connection,
         public string $table,
         ?QueryFactoryInterface $queryFactory = null,
-        ?TableManagerInterface $tableManager = null,
     ) {
         $this->platform = $connection->getDatabasePlatform();
         $this->queryFactory = $queryFactory ?? new QueryFactory($connection);
-        $this->tableManager = $tableManager ?? new TableManager($connection);
     }
 
     /**
@@ -62,7 +56,7 @@ readonly class TableGateway
     ): int {
         return $this->queryFactory
             ->createBulkInsert()
-            ->insert($this->table, $rows, $columnTypes, $updateOnDuplicateKey, $updateColumns);
+            ->executeQuery($this->table, $rows, $columnTypes, $updateOnDuplicateKey, $updateColumns);
     }
 
     /**
@@ -82,99 +76,9 @@ readonly class TableGateway
         array $joinColumns,
         array $columnTypes = [],
     ): int {
-        if (empty($rows)) {
-            return 0;
-        }
-
-        // Validate columns
-        if (empty($joinColumns)) {
-            throw new InvalidArgumentException('Join columns must be specified for bulk update!');
-        }
-
-        $columnNames = null;
-
-        foreach ($rows as $row) {
-            if ($columnNames === null) {
-                $columnNames = array_keys($row);
-            } elseif (array_keys($row) !== $columnNames) {
-                throw new InvalidArgumentException('All rows must have the same columns!');
-            }
-        }
-
-        if (array_intersect($joinColumns, $columnNames) !== $joinColumns) {
-            throw new InvalidArgumentException('Join columns must be a subset of the columns in the rows!');
-        }
-
-        if (empty(array_diff($columnNames, $joinColumns))) {
-            throw new InvalidArgumentException('Rows must not only contain join columns!');
-        }
-
-        // Create a temporary table using TableManager
-        $columns = [];
-        $tempTableName = sprintf('temp_%s_%s', $this->table, uniqid());
-
-        foreach ($columnNames as $column) {
-            $type = Type::getType(Types::STRING); // Default column type
-
-            if (isset($columnTypes[$column])) {
-                $columnType = $columnTypes[$column];
-
-                if ($columnType instanceof Type) {
-                    $type = $columnType;
-                } elseif (is_string($columnType)) {
-                    $type = Type::getType($columnType);
-                }
-            }
-
-            $columns[] = new Column($column, $type);
-        }
-
-        $this->tableManager->createTemporaryTable(
-            name: $tempTableName,
-            columns: $columns,
-            indexes: array_map(static fn(string $column): Index => new Index($column, [$column]), $joinColumns),
-        );
-
-        // Insert data into the temporary table
-        $this->queryFactory->createBulkInsert()->insert($tempTableName, $rows, $columnTypes);
-
-        // Update the actual table by joining with the temporary table
-        $quotedTable = $this->platform->quoteIdentifier('t1');
-        $quotedTempTable = $this->platform->quoteIdentifier('t2');
-
-        $joinConditions = array_map(
-            fn(string $column): string => sprintf(
-                '%2$s.%1$s = %3$s.%1$s',
-                $this->platform->quoteIdentifier($column),
-                $quotedTable,
-                $quotedTempTable,
-            ),
-            $joinColumns,
-        );
-
-        $queryBuilder = $this->connection->createQueryBuilder();
-        $queryBuilder->update(sprintf('%s AS %s', $this->platform->quoteIdentifier($this->table), $quotedTable));
-        $queryBuilder->innerJoin($quotedTable, $tempTableName, $quotedTempTable, implode(' AND ', $joinConditions));
-
-        foreach ($columnNames as $column) {
-            // Skip join columns in the SET clause
-            if (in_array($column, $joinColumns, true)) {
-                continue;
-            }
-
-            $quotedColumn = $this->platform->quoteIdentifier($column);
-            $queryBuilder->set(
-                sprintf('%s.%s', $quotedTable, $quotedColumn),
-                sprintf('%s.%s', $quotedTempTable, $quotedColumn),
-            );
-        }
-
-        $affectedRows = $queryBuilder->executeStatement();
-
-        // Drop the temporary table using TableManager
-        $this->tableManager->dropTemporaryTable($tempTableName, true);
-
-        return (int) $affectedRows;
+        return $this->queryFactory
+            ->createBulkUpdate()
+            ->executeStatement($this->table, $rows, $joinColumns, $columnTypes);
     }
 
     /**
