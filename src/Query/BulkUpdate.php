@@ -92,7 +92,7 @@ readonly class BulkUpdate
                 ' AND ',
                 array_map(
                     fn(string $column): string => sprintf(
-                        '%2$s.%1$s=%3$s.%1$s',
+                        '%2$s.%1$s = %3$s.%1$s',
                         $this->platform->quoteIdentifier($column),
                         $quotedTableAlias,
                         $quotedTempTableAlias,
@@ -104,7 +104,7 @@ readonly class BulkUpdate
                 ',',
                 array_map(
                     fn(string $column): string => sprintf(
-                        '%1$s.%3$s=%2$s.%3$s',
+                        '%1$s.%3$s = %2$s.%3$s',
                         $quotedTableAlias,
                         $quotedTempTableAlias,
                         $this->platform->quoteIdentifier($column),

@@ -63,7 +63,7 @@ final class BulkUpdateTest extends TestCase
             ->willReturnCallback(
                 function (string $sql): int {
                     if (preg_match(
-                        '/UPDATE `test_table` AS `t1` INNER JOIN `temp_test_table_([a-z0-9]+)` AS `t2` ON `t1`.`id`=`t2`.`id` SET `t1`.`name`=`t2`.`name`/i',
+                        '/UPDATE `test_table` AS `t1` INNER JOIN `temp_test_table_([a-z0-9]+)` AS `t2` ON `t1`.`id` = `t2`.`id` SET `t1`.`name` = `t2`.`name`/i',
                         $sql,
                     )) {
                         return 2;

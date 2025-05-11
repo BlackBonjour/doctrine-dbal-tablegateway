@@ -33,7 +33,7 @@ final class BulkInsertTest extends TestCase
             ->expects($this->once())
             ->method('executeStatement')
             ->with(
-                'INSERT INTO `test_table` (`id`,`name`) VALUES (?,?),(?,?)',
+                'INSERT INTO `test_table` (`id`,`name`) VALUES (?,?), (?,?)',
                 [1, 'John Doe', 2, 'Jane Doe'],
                 [],
             )
@@ -112,8 +112,8 @@ final class BulkInsertTest extends TestCase
             ->method('executeStatement')
             ->with(
                 'INSERT INTO `test_table` (`id`,`name`)'
-                . ' VALUES (?,?),(?,?) AS `new`'
-                . ' ON DUPLICATE KEY UPDATE `id`=`new`.`id`,`name`=`new`.`name`',
+                . ' VALUES (?,?), (?,?) AS `new`'
+                . ' ON DUPLICATE KEY UPDATE `id` = `new`.`id`,`name` = `new`.`name`',
                 [1, 'John Doe', 2, 'Jane Doe'],
                 [],
             )
@@ -159,7 +159,7 @@ final class BulkInsertTest extends TestCase
             ->expects($this->once())
             ->method('executeStatement')
             ->with(
-                'INSERT INTO `test_table` (`id`,`name`,`score`) VALUES (?,?,?),(?,?,?)',
+                'INSERT INTO `test_table` (`id`,`name`,`score`) VALUES (?,?,?), (?,?,?)',
                 [1, 'John Doe', 10.5, 2, 'Jane Doe', 12.0],
                 [
                     ParameterType::INTEGER,

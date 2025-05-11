@@ -85,13 +85,13 @@ readonly class BulkInsert
         $columns = implode(',', array_map($this->platform->quoteIdentifier(...), $columnNames));
         $tableName = $this->platform->quoteIdentifier($table);
 
-        $sql = sprintf(/** @lang text */ 'INSERT INTO %s (%s) VALUES %s', $tableName, $columns, implode(',', $values));
+        $sql = sprintf(/** @lang text */ 'INSERT INTO %s (%s) VALUES %s', $tableName, $columns, implode(', ', $values));
 
         if ($updateOnDuplicateKey) {
             if ($this->platform instanceof MariaDBPlatform) {
                 $updateColumns = array_map(
                     fn(string $column): string => sprintf(
-                        '%1$s=VALUES(%1$s)',
+                        '%1$s = VALUES(%1$s)',
                         $this->platform->quoteIdentifier($column),
                     ),
                     $updateColumns ?: $columnNames,
@@ -102,7 +102,7 @@ readonly class BulkInsert
                 $alias = $this->platform->quoteIdentifier('new');
                 $updateColumns = array_map(
                     fn(string $column): string => sprintf(
-                        '%2$s=%1$s.%2$s',
+                        '%2$s = %1$s.%2$s',
                         $alias,
                         $this->platform->quoteIdentifier($column),
                     ),

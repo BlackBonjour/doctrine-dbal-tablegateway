@@ -8,8 +8,10 @@ use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use BlackBonjour\TableGateway\Exception\ResultException;
 use BlackBonjour\TableGateway\Query\BulkInsert;
 use BlackBonjour\TableGateway\Query\BulkUpdate;
+use BlackBonjour\TableGateway\Query\Delete;
 use BlackBonjour\TableGateway\QueryFactoryInterface;
 use BlackBonjour\TableGateway\TableGateway;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Query\QueryBuilder;
@@ -239,6 +241,33 @@ final class TableGatewayTest extends TestCase
     }
 
     /**
+     * Verifies that the `createQueryBuilder` method correctly creates a query builder for the table.
+     *
+     * @throws Throwable
+     */
+    public function testCreateQueryBuilder(): void
+    {
+        // Mock dependencies
+        $queryBuilder = $this->createMock(QueryBuilder::class);
+        $queryBuilder
+            ->expects($this->once())
+            ->method('from')
+            ->with('test_table')
+            ->willReturnSelf();
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('createQueryBuilder')
+            ->willReturn($queryBuilder);
+
+        // Test case
+        $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(QueryFactoryInterface::class));
+
+        self::assertSame($queryBuilder, $tableGateway->createQueryBuilder());
+    }
+
+    /**
      * Verifies that the `delete` method deletes rows and returns the affected row count.
      *
      * @throws Throwable
@@ -293,6 +322,49 @@ final class TableGatewayTest extends TestCase
         $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(QueryFactoryInterface::class));
 
         self::assertEquals(3, $tableGateway->delete(strict: false));
+    }
+
+    /**
+     * Verifies that the `delete` method correctly handles array values in criteria.
+     *
+     * @throws Throwable
+     */
+    public function testDeleteWithArrayValues(): void
+    {
+        // Mock dependencies
+        $delete = $this->createMock(Delete::class);
+        $delete
+            ->expects($this->once())
+            ->method('executeStatement')
+            ->with(
+                'test_table',
+                'id = :id',
+                ['id' => [1, 2, 3]],
+                ['id' => ArrayParameterType::INTEGER],
+            )
+            ->willReturn(3);
+
+        $queryFactory = $this->createMock(QueryFactoryInterface::class);
+        $queryFactory
+            ->expects($this->once())
+            ->method('createDelete')
+            ->willReturn($delete);
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->never())
+            ->method('delete');
+
+        // Test case
+        $tableGateway = new TableGateway($connection, 'test_table', $queryFactory);
+
+        self::assertEquals(
+            3,
+            $tableGateway->delete(
+                ['id' => [1, 2, 3]],
+                ['id' => ParameterType::INTEGER],
+            ),
+        );
     }
 
     /**

@@ -146,7 +146,7 @@ readonly class TableGateway
         $paramTypes = [];
 
         foreach ($criteria as $column => $value) {
-            $where[] = sprintf('%1$s=:%1$s', $column);
+            $where[] = sprintf('%1$s = :%1$s', $column);
             $params[$column] = $value;
             $columnType = $types[$column] ?? null;
 

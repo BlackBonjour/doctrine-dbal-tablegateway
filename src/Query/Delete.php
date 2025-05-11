@@ -8,7 +8,6 @@ use BlackBonjour\TableGateway\ApplyWhereTrait;
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
-use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Query\Expression\CompositeExpression;
 
 /**
@@ -18,16 +17,9 @@ readonly class Delete
 {
     use ApplyWhereTrait;
 
-    public AbstractPlatform $platform;
-
-    /**
-     * @throws Exception
-     */
     public function __construct(
         public Connection $connection,
-    ) {
-        $this->platform = $connection->getDatabasePlatform();
-    }
+    ) {}
 
     /**
      * Executes a delete statement on the specified table with the given conditions.
