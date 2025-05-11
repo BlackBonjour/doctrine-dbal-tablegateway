@@ -10,7 +10,7 @@ This repository includes configuration for running integration tests with MariaD
 
 - Docker
 - Docker Compose
-- PHP 8.1 or higher with required extensions for Doctrine DBAL
+- PHP 8.3 or higher with required extensions for Doctrine DBAL
 
 ### Setup
 
@@ -24,7 +24,7 @@ This repository includes configuration for running integration tests with MariaD
    ```
    DB_DRIVER=pdo_mysql
    DB_HOST=127.0.0.1
-   DB_NAME=tablegateway_test
+   DB_NAME=your_database
    DB_PORT=3306
    DB_PASSWORD=your_password
    DB_ROOT_PASSWORD=your_root_password
@@ -37,7 +37,7 @@ To run the integration tests:
 
 1. Start the MariaDB container:
    ```bash
-   docker-compose up -d
+   docker-compose up -d mariadb
    ```
 
 2. Run the PHPUnit tests:
