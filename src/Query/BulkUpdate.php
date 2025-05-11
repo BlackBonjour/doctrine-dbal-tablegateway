@@ -23,6 +23,8 @@ use SensitiveParameter;
 readonly class BulkUpdate
 {
     public AbstractPlatform $platform;
+
+    /** @var AbstractSchemaManager<AbstractMySQLPlatform> */
     public AbstractSchemaManager $schemaManager;
 
     /**
@@ -141,6 +143,10 @@ readonly class BulkUpdate
     }
 
     /**
+     * @param list<non-empty-array<string, mixed>> $rows
+     * @param list<string>                         $joinColumns
+     *
+     * @return list<string>
      * @throws InvalidArgumentException
      */
     private function fetchColumnNames(array $rows, array $joinColumns): array
@@ -150,7 +156,6 @@ readonly class BulkUpdate
         }
 
         $columnNames = null;
-        $joinColumns = array_values($joinColumns);
 
         foreach ($rows as $row) {
             if ($columnNames === null) {
@@ -158,6 +163,10 @@ readonly class BulkUpdate
             } elseif (array_keys($row) !== $columnNames) {
                 throw new InvalidArgumentException('All rows must have the same columns!');
             }
+        }
+
+        if ($columnNames === null) {
+            throw new InvalidArgumentException('No columns found in rows!');
         }
 
         if (array_intersect($joinColumns, $columnNames) !== $joinColumns) {
