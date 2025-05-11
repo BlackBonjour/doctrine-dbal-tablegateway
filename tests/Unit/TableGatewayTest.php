@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BlackBonjourTest\TableGateway;
+namespace BlackBonjourTest\TableGateway\Unit;
 
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use BlackBonjour\TableGateway\Exception\ResultException;
@@ -12,13 +12,8 @@ use BlackBonjour\TableGateway\QueryFactoryInterface;
 use BlackBonjour\TableGateway\TableGateway;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
-use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
-use Doctrine\DBAL\Schema\Column;
-use Doctrine\DBAL\Schema\Index;
-use Doctrine\DBAL\Types\Type;
-use Doctrine\DBAL\Types\Types;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 

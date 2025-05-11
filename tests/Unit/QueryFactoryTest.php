@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BlackBonjourTest\TableGateway;
+namespace BlackBonjourTest\TableGateway\Unit;
 
 use BlackBonjour\TableGateway\Query\BulkInsert;
 use BlackBonjour\TableGateway\Query\BulkUpdate;

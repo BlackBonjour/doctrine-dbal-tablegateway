@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace BlackBonjourTest\TableGateway\Query;
+namespace BlackBonjourTest\TableGateway\Unit\Query;
 
 use BlackBonjour\TableGateway\Query\BulkInsert;
 use BlackBonjour\TableGateway\Query\BulkUpdate;
@@ -10,8 +10,7 @@ use BlackBonjour\TableGateway\QueryFactoryInterface;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
-use Doctrine\DBAL\Platforms\AbstractPlatform;
-use Doctrine\DBAL\Query\QueryBuilder;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
@@ -23,7 +22,7 @@ final class BulkUpdateTest extends TestCase
      *
      * @throws Throwable
      */
-    public function testBulkUpdate(): void
+    public function testExecuteStatement(): void
     {
         // Mock dependencies
         $bulkInsert = $this->createMock(BulkInsert::class);
@@ -46,28 +45,12 @@ final class BulkUpdateTest extends TestCase
             ->method('createBulkInsert')
             ->willReturn($bulkInsert);
 
-        $queryBuilder = $this->createMock(QueryBuilder::class);
-        $queryBuilder
-            ->expects($this->once())
-            ->method('executeStatement')
-            ->willReturn(2);
-
-        $queryBuilder
-            ->expects($this->once())
-            ->method('innerJoin')
-            ->with('`t1`', self::stringContains('temp_test_table_'), '`t2`', '`t1`.`id` = `t2`.`id`');
-
-        $queryBuilder
-            ->expects($this->once())
-            ->method('set')
-            ->with('`t1`.`name`', '`t2`.`name`');
-
-        $queryBuilder
-            ->expects($this->once())
-            ->method('update')
-            ->with('`test_table` AS `t1`');
-
         $platform = $this->createMock(AbstractMySQLPlatform::class);
+        $platform
+            ->expects($this->once())
+            ->method('getDropTemporaryTableSQL')
+            ->willReturnCallback(static fn(string $table): string => sprintf('DROP TEMPORARY TABLE %s', $table));
+
         $platform
             ->expects($this->atLeastOnce())
             ->method('quoteIdentifier')
@@ -75,9 +58,24 @@ final class BulkUpdateTest extends TestCase
 
         $connection = $this->createMock(Connection::class);
         $connection
-            ->expects($this->once())
-            ->method('createQueryBuilder')
-            ->willReturn($queryBuilder);
+            ->expects($this->exactly(2))
+            ->method('executeStatement')
+            ->willReturnCallback(
+                function (string $sql): int {
+                    if (preg_match(
+                        '/UPDATE `test_table` AS `t1` INNER JOIN `temp_test_table_([a-z0-9]+)` AS `t2` ON `t1`.`id`=`t2`.`id` SET `t1`.`name`=`t2`.`name`/i',
+                        $sql,
+                    )) {
+                        return 2;
+                    }
+
+                    if (preg_match('/DROP TEMPORARY TABLE temp_test_table_([a-z0-9]+)/i', $sql)) {
+                        return 0;
+                    }
+
+                    throw new LogicException('SQL is unexpected: ' . $sql);
+                },
+            );
 
         $connection
             ->expects($this->once())
@@ -85,11 +83,11 @@ final class BulkUpdateTest extends TestCase
             ->willReturn($platform);
 
         // Test case
-        $tableGateway = new BulkUpdate($connection, $queryFactory);
+        $bulkUpdate = new BulkUpdate($connection, $queryFactory);
 
         self::assertSame(
             2,
-            $tableGateway->executeStatement(
+            $bulkUpdate->executeStatement(
                 'test_table',
                 [
                     ['id' => 1, 'name' => 'John'],

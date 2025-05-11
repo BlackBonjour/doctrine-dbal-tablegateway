@@ -6,6 +6,7 @@ namespace BlackBonjour\TableGateway;
 
 use BlackBonjour\TableGateway\Query\BulkInsert;
 use BlackBonjour\TableGateway\Query\BulkUpdate;
+use BlackBonjour\TableGateway\Query\Delete;
 
 /**
  * Interface for query factory implementations.
@@ -15,4 +16,6 @@ interface QueryFactoryInterface
     public function createBulkInsert(): BulkInsert;
 
     public function createBulkUpdate(): BulkUpdate;
+
+    public function createDelete(): Delete;
 }

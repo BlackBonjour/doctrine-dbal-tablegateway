@@ -18,7 +18,8 @@
     "phpmd/phpmd": "*",
     "phpstan/phpstan": "*",
     "phpunit/phpunit": "12.*",
-    "roave/security-advisories": "dev-latest"
+    "roave/security-advisories": "dev-latest",
+    "symfony/dotenv": "v7.*"
   },
   "autoload": {
     "psr-4": {

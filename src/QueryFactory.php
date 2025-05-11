@@ -6,6 +6,7 @@ namespace BlackBonjour\TableGateway;
 
 use BlackBonjour\TableGateway\Query\BulkInsert;
 use BlackBonjour\TableGateway\Query\BulkUpdate;
+use BlackBonjour\TableGateway\Query\Delete;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 
@@ -32,5 +33,13 @@ readonly class QueryFactory implements QueryFactoryInterface
     public function createBulkUpdate(): BulkUpdate
     {
         return new BulkUpdate($this->connection, $this);
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function createDelete(): Delete
+    {
+        return new Delete($this->connection);
     }
 }

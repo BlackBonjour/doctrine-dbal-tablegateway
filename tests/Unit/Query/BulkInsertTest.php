@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace BlackBonjourTest\TableGateway\Query;
+namespace BlackBonjourTest\TableGateway\Unit\Query;
 
-use BlackBonjour\TableGateway\Query\BulkInsert;
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
+use BlackBonjour\TableGateway\Query\BulkInsert;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
@@ -19,7 +19,7 @@ final class BulkInsertTest extends TestCase
      *
      * @throws Throwable
      */
-    public function testInsert(): void
+    public function testExecuteQuery(): void
     {
         // Mock dependencies
         $platform = $this->createMock(AbstractMySQLPlatform::class);
@@ -64,7 +64,7 @@ final class BulkInsertTest extends TestCase
      *
      * @throws Throwable
      */
-    public function testInsertThrowsExceptionForMismatchedColumns(): void
+    public function testExecuteQueryThrowsExceptionForMismatchedColumns(): void
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionCode(0);
@@ -97,7 +97,7 @@ final class BulkInsertTest extends TestCase
      *
      * @throws Throwable
      */
-    public function testInsertUpdateOnDuplicateKey(): void
+    public function testExecuteQueryUpdateOnDuplicateKey(): void
     {
         // Mock dependencies
         $platform = $this->createMock(AbstractMySQLPlatform::class);
@@ -141,35 +141,11 @@ final class BulkInsertTest extends TestCase
     }
 
     /**
-     * Verifies that the `executeQuery` method returns 0 when an empty array of rows is provided.
-     *
-     * @throws Throwable
-     */
-    public function testInsertWithEmptyRows(): void
-    {
-        // Mock dependencies
-        $connection = $this->createMock(Connection::class);
-        $connection
-            ->expects($this->never())
-            ->method('executeStatement');
-
-        $connection
-            ->expects($this->once())
-            ->method('getDatabasePlatform')
-            ->willReturn($this->createMock(AbstractMySQLPlatform::class));
-
-        // Test case
-        $bulkInsert = new BulkInsert($connection);
-
-        self::assertEquals(0, $bulkInsert->executeQuery('test_table', []));
-    }
-
-    /**
      * Verifies that the `executeQuery` method correctly handles column types.
      *
      * @throws Throwable
      */
-    public function testInsertWithColumnTypes(): void
+    public function testExecuteQueryWithColumnTypes(): void
     {
         // Mock dependencies
         $platform = $this->createMock(AbstractMySQLPlatform::class);
@@ -219,5 +195,29 @@ final class BulkInsertTest extends TestCase
                 ],
             ),
         );
+    }
+
+    /**
+     * Verifies that the `executeQuery` method returns 0 when an empty array of rows is provided.
+     *
+     * @throws Throwable
+     */
+    public function testExecuteQueryWithEmptyRows(): void
+    {
+        // Mock dependencies
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->never())
+            ->method('executeStatement');
+
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($this->createMock(AbstractMySQLPlatform::class));
+
+        // Test case
+        $bulkInsert = new BulkInsert($connection);
+
+        self::assertEquals(0, $bulkInsert->executeQuery('test_table', []));
     }
 }

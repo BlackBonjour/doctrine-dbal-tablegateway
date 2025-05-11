@@ -10,6 +10,7 @@ use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
+use Doctrine\DBAL\Platforms\MariaDBPlatform;
 use Doctrine\DBAL\Types\Type;
 use SensitiveParameter;
 
@@ -87,17 +88,29 @@ readonly class BulkInsert
         $sql = sprintf(/** @lang text */ 'INSERT INTO %s (%s) VALUES %s', $tableName, $columns, implode(',', $values));
 
         if ($updateOnDuplicateKey) {
-            $alias = $this->platform->quoteIdentifier('new');
-            $updateColumns = array_map(
-                fn(string $column): string => sprintf(
-                    '%2$s=%1$s.%2$s',
-                    $alias,
-                    $this->platform->quoteIdentifier($column),
-                ),
-                $updateColumns ?: $columnNames,
-            );
+            if ($this->platform instanceof MariaDBPlatform) {
+                $updateColumns = array_map(
+                    fn(string $column): string => sprintf(
+                        '%1$s=VALUES(%1$s)',
+                        $this->platform->quoteIdentifier($column),
+                    ),
+                    $updateColumns ?: $columnNames,
+                );
 
-            $sql .= sprintf(' AS %s ON DUPLICATE KEY UPDATE %s', $alias, implode(',', $updateColumns));
+                $sql .= sprintf(' ON DUPLICATE KEY UPDATE %s', implode(',', $updateColumns));
+            } else {
+                $alias = $this->platform->quoteIdentifier('new');
+                $updateColumns = array_map(
+                    fn(string $column): string => sprintf(
+                        '%2$s=%1$s.%2$s',
+                        $alias,
+                        $this->platform->quoteIdentifier($column),
+                    ),
+                    $updateColumns ?: $columnNames,
+                );
+
+                $sql .= sprintf(' AS %s ON DUPLICATE KEY UPDATE %s', $alias, implode(',', $updateColumns));
+            }
         }
 
         return (int) $this->connection->executeStatement($sql, $params, $types);

@@ -6,6 +6,7 @@ namespace BlackBonjour\TableGateway;
 
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use BlackBonjour\TableGateway\Exception\ResultException;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 use Doctrine\DBAL\ParameterType;
@@ -21,6 +22,8 @@ use SensitiveParameter;
  */
 readonly class TableGateway
 {
+    use ApplyWhereTrait;
+
     public AbstractPlatform $platform;
     public QueryFactoryInterface $queryFactory;
 
@@ -132,7 +135,51 @@ readonly class TableGateway
             throw new InvalidArgumentException('No criteria provided for deletion!');
         }
 
-        return (int) $this->connection->delete($this->table, $criteria, $types);
+        // Use build-in `delete` method if no array values are provided
+        if (empty(array_filter($criteria, 'is_array'))) {
+            return (int) $this->connection->delete($this->table, $criteria, $types);
+        }
+
+        // Use custom delete query if array values are provided
+        $where = [];
+        $params = [];
+        $paramTypes = [];
+
+        foreach ($criteria as $column => $value) {
+            $where[] = sprintf('%1$s=:%1$s', $column);
+            $params[$column] = $value;
+            $columnType = $types[$column] ?? null;
+
+            if (is_array($value)) {
+                if ($columnType === null) {
+                    $paramTypes[$column] = ArrayParameterType::STRING;
+                } else {
+                    if ($columnType instanceof ParameterType) {
+                        $paramType = $columnType;
+                    } elseif ($columnType instanceof Type) {
+                        $paramType = $columnType->getBindingType();
+                    } else {
+                        $paramType = Type::getType($columnType)->getBindingType();
+                    }
+
+                    $paramTypes[$column] = match ($paramType) {
+                        ParameterType::ASCII => ArrayParameterType::ASCII,
+                        ParameterType::BINARY => ArrayParameterType::BINARY,
+                        ParameterType::INTEGER => ArrayParameterType::INTEGER,
+                        ParameterType::STRING => ArrayParameterType::STRING,
+                        default => throw new InvalidArgumentException(
+                            sprintf('Invalid parameter type "%s" for column "%s"!', $paramType->name, $column),
+                        ),
+                    };
+                }
+            } elseif ($columnType) {
+                $paramTypes[$column] = $columnType;
+            }
+        }
+
+        return $this->queryFactory
+            ->createDelete()
+            ->executeStatement($this->table, implode(' AND ', $where), $params, $paramTypes);
     }
 
     /**
@@ -221,38 +268,5 @@ readonly class TableGateway
     public function update(#[SensitiveParameter] array $data, array $criteria = [], array $types = []): int
     {
         return (int) $this->connection->update($this->table, $data, $criteria, $types);
-    }
-
-    /**
-     * @param list<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be retrieved.
-     * @param list<mixed>|array<string, mixed>             $params Parameters to bind to the WHERE clause.
-     * @param array                                        $types  Parameter types for the bound parameters.
-     *
-     * @throws InvalidArgumentException
-     *
-     * @phpstan-param WrapperParameterTypeArray            $types
-     */
-    private function applyWhere(
-        QueryBuilder $queryBuilder,
-        array|string|null $where,
-        #[SensitiveParameter]
-        array $params = [],
-        array $types = [],
-    ): void {
-        if ($where === null) {
-            return;
-        }
-
-        if (is_string($where)) {
-            $queryBuilder->where($where);
-        } elseif (array_is_list($where)) {
-            $queryBuilder->where(...$where);
-        } else {
-            throw new InvalidArgumentException('Invalid WHERE clause!');
-        }
-
-        if ($params) {
-            $queryBuilder->setParameters($params, $types);
-        }
     }
 }

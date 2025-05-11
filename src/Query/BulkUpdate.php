@@ -12,7 +12,9 @@ use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
+use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Schema\Exception\InvalidTableName;
+use Doctrine\DBAL\Schema\Index;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Type;
 use SensitiveParameter;
@@ -70,7 +72,7 @@ readonly class BulkUpdate
         $columnNames = $this->fetchColumnNames($rows, $joinColumns);
 
         // Create a temporary table and insert data into it
-        $tempTable = $this->createTemporaryTable($table);
+        $tempTable = $this->createTemporaryTable($table, $joinColumns + $columnNames, $joinColumns);
         $tempTableName = $tempTable->getName();
 
         $this->queryFactory->createBulkInsert()->executeQuery($tempTableName, $rows, $columnTypes);
@@ -79,39 +81,41 @@ readonly class BulkUpdate
         $quotedTableAlias = $this->platform->quoteIdentifier('t1');
         $quotedTempTableAlias = $this->platform->quoteIdentifier('t2');
 
-        $joinConditions = array_map(
-            fn(string $column): string => sprintf(
-                '%2$s.%1$s = %3$s.%1$s',
-                $this->platform->quoteIdentifier($column),
-                $quotedTableAlias,
-                $quotedTempTableAlias,
-            ),
-            $joinColumns,
-        );
-
-        $queryBuilder = $this->connection->createQueryBuilder();
-        $queryBuilder->update(sprintf('%s AS %s', $this->platform->quoteIdentifier($table), $quotedTableAlias));
-        $queryBuilder->innerJoin(
+        $sql = sprintf(
+            /** @lang text */
+            'UPDATE %s AS %s INNER JOIN %s AS %s ON %s SET %s',
+            $this->platform->quoteIdentifier($table),
             $quotedTableAlias,
-            $tempTableName,
+            $this->platform->quoteIdentifier($tempTableName),
             $quotedTempTableAlias,
-            implode(' AND ', $joinConditions),
+            implode(
+                ' AND ',
+                array_map(
+                    fn(string $column): string => sprintf(
+                        '%2$s.%1$s=%3$s.%1$s',
+                        $this->platform->quoteIdentifier($column),
+                        $quotedTableAlias,
+                        $quotedTempTableAlias,
+                    ),
+                    $joinColumns,
+                ),
+            ),
+            implode(
+                ',',
+                array_map(
+                    fn(string $column): string => sprintf(
+                        '%1$s.%3$s=%2$s.%3$s',
+                        $quotedTableAlias,
+                        $quotedTempTableAlias,
+                        $this->platform->quoteIdentifier($column),
+                    ),
+                    // Skip join columns in the SET clause
+                    array_filter($columnNames, fn(string $column): bool => in_array($column, $joinColumns, true) === false),
+                ),
+            ),
         );
 
-        foreach ($columnNames as $column) {
-            // Skip join columns in the SET clause
-            if (in_array($column, $joinColumns, true)) {
-                continue;
-            }
-
-            $quotedColumn = $this->platform->quoteIdentifier($column);
-            $queryBuilder->set(
-                sprintf('%s.%s', $quotedTableAlias, $quotedColumn),
-                sprintf('%s.%s', $quotedTempTableAlias, $quotedColumn),
-            );
-        }
-
-        $affectedRows = $queryBuilder->executeStatement();
+        $affectedRows = $this->connection->executeStatement($sql);
 
         // Drop the temporary table using TableManager
         $this->dropTemporaryTable($tempTableName);
@@ -120,15 +124,27 @@ readonly class BulkUpdate
     }
 
     /**
+     * @param list<string> $columnNames
+     * @param list<string> $joinColumns
+     *
      * @throws Exception
      * @throws InvalidTableName
      */
-    private function createTemporaryTable(string $table): Table
+    private function createTemporaryTable(string $table, array $columnNames, array $joinColumns): Table
     {
-        $indexes = $this->schemaManager->listTableIndexes($table);
         $columns = $this->schemaManager->listTableColumns($table);
+        $columns = array_filter($columns, fn(Column $column): bool => in_array($column->getName(), $columnNames, true));
 
-        $table = new Table(sprintf('temp_%s_%s', $table, uniqid()), $columns, $indexes, options: ['temporary' => true]);
+        $table = new Table(
+            name: sprintf('temp_%s_%s', $table, uniqid()),
+            columns: $columns,
+            indexes: array_map(
+                static fn(string $joinColumn): Index => new Index($joinColumn, [$joinColumn]),
+                $joinColumns,
+            ),
+            options: ['temporary' => true],
+        );
+
         $this->schemaManager->createTable($table);
 
         return $table;
