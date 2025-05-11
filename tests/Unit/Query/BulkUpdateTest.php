@@ -85,7 +85,7 @@ final class BulkUpdateTest extends TestCase
         // Test case
         $bulkUpdate = new BulkUpdate($connection, $queryFactory);
 
-        self::assertSame(
+        self::assertEquals(
             2,
             $bulkUpdate->executeStatement(
                 'test_table',

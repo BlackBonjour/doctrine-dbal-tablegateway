@@ -117,8 +117,8 @@ readonly class BulkUpdate
 
         $affectedRows = $this->connection->executeStatement($sql);
 
-        // Drop the temporary table using TableManager
-        $this->dropTemporaryTable($tempTableName);
+        // Drop the temporary table
+        $this->connection->executeStatement($this->platform->getDropTemporaryTableSQL($tempTableName));
 
         return (int) $affectedRows;
     }
@@ -148,14 +148,6 @@ readonly class BulkUpdate
         $this->schemaManager->createTable($table);
 
         return $table;
-    }
-
-    /**
-     * @throws Exception
-     */
-    private function dropTemporaryTable(string $table): void
-    {
-        $this->connection->executeStatement($this->platform->getDropTemporaryTableSQL($table));
     }
 
     /**

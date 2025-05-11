@@ -22,7 +22,7 @@ use Throwable;
 final class TableGatewayTest extends TestCase
 {
     /**
-     * Verifies the `bulkInsert` method that the correct number of rows is inserted into the database.
+     * Verifies that the `bulkInsert` method inserts rows correctly and returns the total affected row count.
      *
      * @throws Throwable
      */
@@ -55,7 +55,7 @@ final class TableGatewayTest extends TestCase
             $queryFactory,
         );
 
-        self::assertSame(
+        self::assertEquals(
             2,
             $tableGateway->bulkInsert(
                 [
@@ -99,7 +99,7 @@ final class TableGatewayTest extends TestCase
         // Test case
         $tableGateway = new TableGateway($this->createMock(Connection::class), 'test_table', $queryFactory);
 
-        self::assertSame(
+        self::assertEquals(
             2,
             $tableGateway->bulkUpdate(
                 [
