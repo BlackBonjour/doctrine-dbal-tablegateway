@@ -77,7 +77,7 @@ readonly class BulkInsert
             if ($columnNames === null) {
                 $columnNames = array_keys($row);
             } elseif (array_keys($row) !== $columnNames) {
-                throw new InvalidArgumentException('All rows must have the same columns!');
+                throw new InvalidArgumentException('All rows must have the same columns.');
             }
 
             $values[] = sprintf('(%s)', implode(',', array_fill(0, count($row), '?')));

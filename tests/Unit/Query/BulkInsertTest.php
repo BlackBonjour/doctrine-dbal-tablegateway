@@ -68,7 +68,7 @@ final class BulkInsertTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionCode(0);
-        $this->expectExceptionMessage('All rows must have the same columns!');
+        $this->expectExceptionMessage('All rows must have the same columns.');
 
         // Mock dependencies
         $connection = $this->createMock(Connection::class);

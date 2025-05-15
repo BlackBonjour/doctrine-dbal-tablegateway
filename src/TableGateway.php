@@ -132,7 +132,7 @@ readonly class TableGateway
     public function delete(array $criteria = [], array $types = [], bool $strict = true): int
     {
         if ($strict && empty($criteria)) {
-            throw new InvalidArgumentException('No criteria provided for deletion!');
+            throw new InvalidArgumentException('No criteria provided for deletion.');
         }
 
         // Use the built-in `delete` method if no array values are provided
@@ -168,7 +168,7 @@ readonly class TableGateway
                         ParameterType::INTEGER => ArrayParameterType::INTEGER,
                         ParameterType::STRING => ArrayParameterType::STRING,
                         default => throw new InvalidArgumentException(
-                            sprintf('Invalid parameter type "%s" for column "%s"!', $paramType->name, $column),
+                            sprintf('Invalid parameter type "%s" for column "%s".', $paramType->name, $column),
                         ),
                     };
                 }
@@ -257,7 +257,7 @@ readonly class TableGateway
             $rowCount = $result->rowCount();
 
             if ($rowCount > 1) {
-                throw new ResultException(sprintf('Expected exactly one row, but got %d rows!', $rowCount));
+                throw new ResultException(sprintf('Expected exactly one row, but got %d rows.', $rowCount));
             }
         }
 

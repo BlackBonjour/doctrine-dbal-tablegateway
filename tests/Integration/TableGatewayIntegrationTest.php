@@ -523,7 +523,7 @@ final class TableGatewayIntegrationTest extends TestCase
         // This should throw an exception as there are multiple active users
         $this->expectException(ResultException::class);
         $this->expectExceptionCode(0);
-        $this->expectExceptionMessage('Expected exactly one row, but got 2 rows!');
+        $this->expectExceptionMessage('Expected exactly one row, but got 2 rows.');
 
         $this->testEntityGateway->selectFirst('status = :status', ['status' => 'active'], strict: true);
     }
@@ -632,7 +632,7 @@ final class TableGatewayIntegrationTest extends TestCase
             || $port === false
             || $user === false
         ) {
-            throw new RuntimeException('Missing database configuration in ENV-variables.');
+            throw new RuntimeException('Missing database configuration in environment variables.');
         }
 
         // Create a real database connection

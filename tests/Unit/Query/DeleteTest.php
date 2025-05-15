@@ -163,7 +163,7 @@ final class DeleteTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionCode(0);
-        $this->expectExceptionMessage('Invalid WHERE clause!');
+        $this->expectExceptionMessage('Invalid WHERE clause format provided.');
 
         // Mock dependencies
         $queryBuilder = $this->createMock(QueryBuilder::class);

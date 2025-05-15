@@ -10,7 +10,7 @@ use Symfony\Component\Dotenv\Dotenv;
     require $root . '/vendor/autoload.php';
 
     if (class_exists(Dotenv::class) === false) {
-        throw new RuntimeException('Please install symfony/dotenv: composer require --dev symfony/dotenv');
+        throw new RuntimeException('Please install symfony/dotenv: composer require --dev symfony/dotenv.');
     }
 
     $dotenv = new Dotenv();

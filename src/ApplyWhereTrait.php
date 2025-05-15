@@ -46,7 +46,7 @@ trait ApplyWhereTrait
         } elseif (array_is_list($where)) {
             $queryBuilder->where(...$where);
         } else {
-            throw new InvalidArgumentException('Invalid WHERE clause!');
+            throw new InvalidArgumentException('Invalid WHERE clause format provided.');
         }
 
         if ($params) {
