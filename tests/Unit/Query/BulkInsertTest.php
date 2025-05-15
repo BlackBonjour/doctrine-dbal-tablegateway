@@ -9,11 +9,35 @@ use BlackBonjour\TableGateway\Query\BulkInsert;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
+use Doctrine\DBAL\Platforms\MariaDBPlatform;
+use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
 final class BulkInsertTest extends TestCase
 {
+    /**
+     * Verifies that the constructor throws an exception when the database platform is not MySQL or MariaDB.
+     *
+     * @throws Throwable
+     */
+    public function testConstructorThrowsExceptionForUnsupportedPlatform(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionCode(0);
+        $this->expectExceptionMessage('Bulk insert is only supported for MySQL and MariaDB platforms.');
+
+        // Mock dependencies with PostgreSQL platform (unsupported)
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($this->createMock(PostgreSQLPlatform::class));
+
+        // This should throw an exception
+        new BulkInsert($connection);
+    }
+
     /**
      * Verifies that the `executeQuery` method inserts rows correctly and returns the total affected row count.
      *
@@ -114,6 +138,53 @@ final class BulkInsertTest extends TestCase
                 'INSERT INTO `test_table` (`id`,`name`)'
                 . ' VALUES (?,?), (?,?) AS `new`'
                 . ' ON DUPLICATE KEY UPDATE `id` = `new`.`id`,`name` = `new`.`name`',
+                [1, 'John Doe', 2, 'Jane Doe'],
+                [],
+            )
+            ->willReturn(2);
+
+        $connection
+            ->expects($this->once())
+            ->method('getDatabasePlatform')
+            ->willReturn($platform);
+
+        // Test case
+        $bulkInsert = new BulkInsert($connection);
+
+        self::assertEquals(
+            2,
+            $bulkInsert->executeQuery(
+                'test_table',
+                [
+                    ['id' => 1, 'name' => 'John Doe'],
+                    ['id' => 2, 'name' => 'Jane Doe'],
+                ],
+                updateOnDuplicateKey: true,
+            ),
+        );
+    }
+
+    /**
+     * Verifies that the `executeQuery` method correctly handles MariaDB platform for ON DUPLICATE KEY UPDATE.
+     *
+     * @throws Throwable
+     */
+    public function testExecuteQueryUpdateOnDuplicateKeyWithMariaDBPlatform(): void
+    {
+        // Mock dependencies
+        $platform = $this->createMock(MariaDBPlatform::class);
+        $platform
+            ->expects($this->exactly(5))
+            ->method('quoteIdentifier')
+            ->willReturnCallback(static fn(string $identifier): string => sprintf('`%s`', $identifier));
+
+        $connection = $this->createMock(Connection::class);
+        $connection
+            ->expects($this->once())
+            ->method('executeStatement')
+            ->with(
+                'INSERT INTO `test_table` (`id`,`name`) VALUES (?,?), (?,?)'
+                . ' ON DUPLICATE KEY UPDATE `id` = VALUES(`id`),`name` = VALUES(`name`)',
                 [1, 'John Doe', 2, 'Jane Doe'],
                 [],
             )

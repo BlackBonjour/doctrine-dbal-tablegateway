@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BlackBonjourTest\TableGateway\Unit;
 
 use BlackBonjour\TableGateway\Query\BulkInsert;
+use BlackBonjour\TableGateway\Query\Delete;
 use BlackBonjour\TableGateway\QueryFactory;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
@@ -21,10 +22,21 @@ final class QueryFactoryTest extends TestCase
         $connection = $this->createMock(Connection::class);
         $connection
             ->expects($this->once())
-            ->method('getDatabasePlatform')->willReturn($this->createMock(AbstractMySQLPlatform::class));
+            ->method('getDatabasePlatform')
+            ->willReturn($this->createMock(AbstractMySQLPlatform::class));
 
         $queryFactory = new QueryFactory($connection);
 
         self::assertInstanceOf(BulkInsert::class, $queryFactory->createBulkInsert());
+    }
+
+    /**
+     * @throws Throwable
+     */
+    public function testCreateDelete(): void
+    {
+        $queryFactory = new QueryFactory($this->createMock(Connection::class));
+
+        self::assertInstanceOf(Delete::class, $queryFactory->createDelete());
     }
 }

@@ -15,6 +15,7 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Query\QueryBuilder;
 use Doctrine\DBAL\Result;
+use Doctrine\DBAL\Types\IntegerType;
 use PHPUnit\Framework\TestCase;
 use Throwable;
 
@@ -243,6 +244,32 @@ final class TableGatewayTest extends TestCase
     }
 
     /**
+     * Verifies that the `delete` method throws an exception when an invalid parameter type is provided for an array value.
+     *
+     * @throws Throwable
+     */
+    public function testDeleteThrowsExceptionForInvalidArrayParameterType(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionCode(0);
+        $this->expectExceptionMessage('Invalid parameter type "LARGE_OBJECT" for column "ids".');
+
+        // Mock dependencies
+        $connection = $this->createMock(Connection::class);
+        $connection->expects($this->never())->method('delete');
+
+        $queryFactory = $this->createMock(QueryFactoryInterface::class);
+        $queryFactory->expects($this->never())->method('createDelete');
+
+        // Test case
+        $tableGateway = new TableGateway($connection, 'test_table', $queryFactory);
+        $tableGateway->delete(
+            ['ids' => [1, 2, 3]],
+            ['ids' => ParameterType::LARGE_OBJECT], // Use `ParameterType` that doesn't have an array equivalent
+        );
+    }
+
+    /**
      * Verifies that the `delete` method throws an exception when no criteria is provided and the strict flag is true.
      *
      * @throws Throwable
@@ -340,6 +367,47 @@ final class TableGatewayTest extends TestCase
         $tableGateway = new TableGateway($connection, 'test_table', $this->createMock(QueryFactoryInterface::class));
 
         self::assertEquals(1, $tableGateway->delete(['id' => 42], ['id' => ParameterType::INTEGER]));
+    }
+
+    /**
+     * Verifies that the `delete` method correctly handles Type objects for array values.
+     *
+     * @throws Throwable
+     */
+    public function testDeleteWithTypeObjectForArrayValues(): void
+    {
+        // Mock dependencies
+        $delete = $this->createMock(Delete::class);
+        $delete
+            ->expects($this->once())
+            ->method('executeStatement')
+            ->with(
+                'test_table',
+                'ids = :ids',
+                ['ids' => [1, 2, 3]],
+                ['ids' => ArrayParameterType::INTEGER],
+            )
+            ->willReturn(3);
+
+        $queryFactory = $this->createMock(QueryFactoryInterface::class);
+        $queryFactory
+            ->expects($this->once())
+            ->method('createDelete')
+            ->willReturn($delete);
+
+        $connection = $this->createMock(Connection::class);
+        $connection->expects($this->never())->method('delete');
+
+        // Test case
+        $tableGateway = new TableGateway($connection, 'test_table', $queryFactory);
+
+        self::assertEquals(
+            3,
+            $tableGateway->delete(
+                ['ids' => [1, 2, 3]],
+                ['ids' => new IntegerType()],
+            ),
+        );
     }
 
     /**

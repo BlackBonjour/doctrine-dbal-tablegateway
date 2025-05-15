@@ -1,5 +1,6 @@
 .idea
 .phpunit.cache
+coverage-report
 vendor
 
 .env
