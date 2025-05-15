@@ -16,11 +16,17 @@ use SensitiveParameter;
 trait ApplyWhereTrait
 {
     /**
-     * @param list<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be retrieved.
-     * @param list<mixed>|array<string, mixed>             $params Parameters to bind to the WHERE clause.
-     * @param array                                        $types  Parameter types for the bound parameters.
+     * Applies WHERE conditions to a QueryBuilder instance.
      *
-     * @throws InvalidArgumentException
+     * This method handles different formats of WHERE conditions and applies them to the provided QueryBuilder.
+     * It supports string conditions, arrays of conditions, and null (no conditions).
+     *
+     * @param QueryBuilder                                 $queryBuilder The QueryBuilder to apply the WHERE conditions to.
+     * @param list<string|CompositeExpression>|string|null $where        SQL WHERE clause or conditions to filter the rows. Can be a string, a list of conditions, or null for no filter.
+     * @param list<mixed>|array<string, mixed>             $params       Parameters to bind to placeholders in the WHERE clause.
+     * @param array                                        $types        Parameter types for the bound parameters to ensure proper type handling and security.
+     *
+     * @throws InvalidArgumentException If the WHERE clause format is invalid or unsupported.
      *
      * @phpstan-param WrapperParameterTypeArray            $types
      */

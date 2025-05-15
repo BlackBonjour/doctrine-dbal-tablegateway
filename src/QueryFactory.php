@@ -10,7 +10,9 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception;
 
 /**
- * Factory for creating query objects.
+ * Default implementation of the QueryFactoryInterface for creating query objects.
+ *
+ * It serves as the standard implementation used by TableGateway when no custom factory is provided.
  */
 readonly class QueryFactory implements QueryFactoryInterface
 {
@@ -19,7 +21,7 @@ readonly class QueryFactory implements QueryFactoryInterface
     ) {}
 
     /**
-     * @throws Exception
+     * @throws Exception If the database platform is not supported for bulk inserts.
      */
     public function createBulkInsert(): BulkInsert
     {

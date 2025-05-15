@@ -15,14 +15,20 @@ use Doctrine\DBAL\Types\Type;
 use SensitiveParameter;
 
 /**
- * Class for handling bulk insert operations. Currently only supports MySQL and MariaDB.
+ * Class for handling bulk insert operations with optimized performance.
+ *
+ * This class provides functionality to insert multiple rows in a single query, which is significantly more efficient than inserting row one by one.
+ * It also supports "ON DUPLICATE KEY UPDATE" functionality for handling duplicate key conflicts.
+ *
+ * Note: Currently only supports MySQL and MariaDB database platforms.
  */
 readonly class BulkInsert
 {
     public AbstractPlatform $platform;
 
     /**
-     * @throws Exception
+     * @throws Exception If there's an error accessing the database platform.
+     * @throws InvalidArgumentException If the database platform is not MySQL or MariaDB.
      */
     public function __construct(
         public Connection $connection,
@@ -35,17 +41,20 @@ readonly class BulkInsert
     }
 
     /**
-     * Performs a bulk insert operation.
+     * Performs a bulk insert operation, efficiently inserting multiple rows in a single query.
      *
-     * @param string                                   $table                The table to insert into.
-     * @param list<non-empty-array<string, mixed>>     $rows                 The rows to insert.
-     * @param array<string, string|ParameterType|Type> $columnTypes          The types of the columns.
-     * @param bool                                     $updateOnDuplicateKey Whether to update on a duplicate key.
-     * @param array<string>                            $updateColumns        The columns to update on a duplicate key.
+     * This method constructs and executes an optimized INSERT query for multiple rows. It can optionally handle duplicate key conflicts by updating specified columns when a
+     * duplicate is encountered using the "ON DUPLICATE KEY UPDATE" syntax.
      *
-     * @return int The number of affected rows.
-     * @throws Exception
-     * @throws InvalidArgumentException
+     * @param string                                   $table                The name of the table to insert into.
+     * @param list<non-empty-array<string, mixed>>     $rows                 The rows to insert, each as an associative array where keys are column names and values are the data.
+     * @param array<string, string|ParameterType|Type> $columnTypes          Optional type mapping for columns to ensure proper type handling and security.
+     * @param bool                                     $updateOnDuplicateKey Whether to update existing rows when a duplicate key is encountered.
+     * @param array<string>                            $updateColumns        The specific columns to update on a duplicate key. If empty, all columns will be updated.
+     *
+     * @return int The number of affected rows (inserted and updated).
+     * @throws Exception If a database error occurs during the operation.
+     * @throws InvalidArgumentException If the input data is invalid or inconsistent, or if rows are empty.
      */
     public function executeQuery(
         string $table,
