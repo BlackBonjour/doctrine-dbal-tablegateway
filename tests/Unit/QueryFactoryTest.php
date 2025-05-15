@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BlackBonjourTest\TableGateway\Unit;
 
 use BlackBonjour\TableGateway\Query\BulkInsert;
-use BlackBonjour\TableGateway\Query\BulkUpdate;
 use BlackBonjour\TableGateway\QueryFactory;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
@@ -27,20 +26,5 @@ final class QueryFactoryTest extends TestCase
         $queryFactory = new QueryFactory($connection);
 
         self::assertInstanceOf(BulkInsert::class, $queryFactory->createBulkInsert());
-    }
-
-    /**
-     * @throws Throwable
-     */
-    public function testCreateBulkUpdate(): void
-    {
-        $connection = $this->createMock(Connection::class);
-        $connection
-            ->expects($this->once())
-            ->method('getDatabasePlatform')->willReturn($this->createMock(AbstractMySQLPlatform::class));
-
-        $queryFactory = new QueryFactory($connection);
-
-        self::assertInstanceOf(BulkUpdate::class, $queryFactory->createBulkUpdate());
     }
 }

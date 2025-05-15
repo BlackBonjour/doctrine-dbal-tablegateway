@@ -70,7 +70,7 @@ The integration tests are located at `tests/Integration/TableGatewayIntegrationT
 These tests:
 - Create the necessary database tables and test data automatically
 - Test basic CRUD operations (insert, select, update, delete)
-- Test bulk operations (bulkInsert, bulkUpdate)
+- Test bulk operations (bulkInsert)
 - Test query operations (count)
 - Test advanced queries with conditions, ordering, and limits
 - Test edge cases and error handling

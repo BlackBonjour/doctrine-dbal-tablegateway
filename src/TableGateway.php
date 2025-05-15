@@ -63,28 +63,6 @@ readonly class TableGateway
     }
 
     /**
-     * Performs a bulk update operation using a temporary table.
-     *
-     * @param list<non-empty-array<string, mixed>>     $rows        The rows to be used for updating the table.
-     * @param list<string>                             $joinColumns The columns to use for joining the temporary table with the actual table.
-     * @param array<string, string|ParameterType|Type> $columnTypes The types of the columns in the temporary table.
-     *
-     * @return int The number of affected rows.
-     * @throws Exception
-     * @throws InvalidArgumentException
-     */
-    public function bulkUpdate(
-        #[SensitiveParameter]
-        array $rows,
-        array $joinColumns,
-        array $columnTypes = [],
-    ): int {
-        return $this->queryFactory
-            ->createBulkUpdate()
-            ->executeStatement($this->table, $rows, $joinColumns, $columnTypes);
-    }
-
-    /**
      * Counts the number of rows in a database table, optionally applying a conditional WHERE clause.
      *
      * @param list<string|CompositeExpression>|string|null $where  SQL WHERE clause to filter the rows to be counted.

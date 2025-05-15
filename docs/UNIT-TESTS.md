@@ -57,7 +57,6 @@ The unit tests are organized in the `tests/Unit` directory, mirroring the struct
 
 3. **Query Components** (`Query/` directory)
    - **BulkInsertTest.php**: Tests bulk insert operations
-   - **BulkUpdateTest.php**: Tests bulk update operations using temporary tables
    - **DeleteTest.php**: Tests delete query operations
 
 ## Test Approach
@@ -81,16 +80,15 @@ public function testExecuteStatement(): void
     // Configure mocks...
     
     // Create the object under test
-    $bulkUpdate = new BulkUpdate($connection, $queryFactory);
+    $bulkInsert = new BulkInsert($connection);
     
     // Execute the method being tested
-    $result = $bulkUpdate->executeStatement(
+    $result = $bulkInsert->executeStatement(
         'test_table',
         [
             ['id' => 1, 'name' => 'John'],
             ['id' => 2, 'name' => 'Jane'],
         ],
-        ['id'],
         ['id' => ParameterType::INTEGER],
     );
     

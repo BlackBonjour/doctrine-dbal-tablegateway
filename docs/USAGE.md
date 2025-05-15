@@ -141,19 +141,6 @@ $affectedRows = $userTable->bulkInsert($rows);
 $affectedRows = $userTable->bulkInsert($rows, [], true, ['username', 'email']);
 ```
 
-#### Bulk Update
-
-```php
-// Update multiple rows using a temporary table
-$rows = [
-    ['user_id' => 1, 'status' => 'active'],
-    ['user_id' => 2, 'status' => 'inactive'],
-    ['user_id' => 3, 'status' => 'pending'],
-];
-
-$affectedRows = $userTable->bulkUpdate($rows, ['user_id']);
-```
-
 ### Working with Types
 
 You can specify column types for better type handling:

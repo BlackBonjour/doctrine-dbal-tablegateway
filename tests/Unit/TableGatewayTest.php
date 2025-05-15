@@ -7,7 +7,6 @@ namespace BlackBonjourTest\TableGateway\Unit;
 use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use BlackBonjour\TableGateway\Exception\ResultException;
 use BlackBonjour\TableGateway\Query\BulkInsert;
-use BlackBonjour\TableGateway\Query\BulkUpdate;
 use BlackBonjour\TableGateway\Query\Delete;
 use BlackBonjour\TableGateway\QueryFactoryInterface;
 use BlackBonjour\TableGateway\TableGateway;
@@ -65,49 +64,6 @@ final class TableGatewayTest extends TestCase
                 ['id' => ParameterType::INTEGER],
                 true,
                 ['name'],
-            ),
-        );
-    }
-
-    /**
-     * Verifies the result of the `bulkUpdate` method by updating the target table using a temporary table and ensuring
-     * the correct execution of the update logic.
-     *
-     * @throws Throwable
-     */
-    public function testBulkUpdate(): void
-    {
-        // Mock dependencies
-        $bulkUpdate = $this->createMock(BulkUpdate::class);
-        $bulkUpdate
-            ->expects($this->once())
-            ->method('executeStatement')
-            ->with(
-                'test_table',
-                [['id' => 1, 'name' => 'John'], ['id' => 2, 'name' => 'Jane']],
-                ['id'],
-                ['id' => ParameterType::INTEGER],
-            )
-            ->willReturn(2);
-
-        $queryFactory = $this->createMock(QueryFactoryInterface::class);
-        $queryFactory
-            ->expects($this->once())
-            ->method('createBulkUpdate')
-            ->willReturn($bulkUpdate);
-
-        // Test case
-        $tableGateway = new TableGateway($this->createMock(Connection::class), 'test_table', $queryFactory);
-
-        self::assertEquals(
-            2,
-            $tableGateway->bulkUpdate(
-                [
-                    ['id' => 1, 'name' => 'John'],
-                    ['id' => 2, 'name' => 'Jane'],
-                ],
-                ['id'],
-                ['id' => ParameterType::INTEGER],
             ),
         );
     }

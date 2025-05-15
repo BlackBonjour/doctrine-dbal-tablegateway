@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace BlackBonjour\TableGateway;
 
 use BlackBonjour\TableGateway\Query\BulkInsert;
-use BlackBonjour\TableGateway\Query\BulkUpdate;
 use BlackBonjour\TableGateway\Query\Delete;
 
 /**
@@ -14,8 +13,6 @@ use BlackBonjour\TableGateway\Query\Delete;
 interface QueryFactoryInterface
 {
     public function createBulkInsert(): BulkInsert;
-
-    public function createBulkUpdate(): BulkUpdate;
 
     public function createDelete(): Delete;
 }
