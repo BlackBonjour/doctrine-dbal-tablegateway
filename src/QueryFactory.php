@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BlackBonjour\TableGateway;
 
+use BlackBonjour\TableGateway\Exception\InvalidArgumentException;
 use BlackBonjour\TableGateway\Query\BulkInsert;
 use BlackBonjour\TableGateway\Query\Delete;
 use Doctrine\DBAL\Connection;
@@ -21,7 +22,8 @@ readonly class QueryFactory implements QueryFactoryInterface
     ) {}
 
     /**
-     * @throws Exception If the database platform is not supported for bulk inserts.
+     * @throws Exception If there's an error accessing the database platform.
+     * @throws InvalidArgumentException If the database platform is not MySQL or MariaDB.
      */
     public function createBulkInsert(): BulkInsert
     {

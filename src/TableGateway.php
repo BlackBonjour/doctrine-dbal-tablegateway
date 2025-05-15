@@ -82,6 +82,7 @@ readonly class TableGateway
      *
      * @return int The count of rows matching the criteria, or the total number of rows if no criteria are provided.
      * @throws Exception If a database error occurs during the query execution.
+     * @throws InvalidArgumentException If the WHERE clause format is invalid or unsupported.
      *
      * @phpstan-param WrapperParameterTypeArray            $types
      */
@@ -146,14 +147,24 @@ readonly class TableGateway
         $paramTypes = [];
 
         foreach ($criteria as $column => $value) {
+            // Build the WHERE clause with named parameters, e.g. `active = :active`
             $where[] = sprintf('%1$s = :%1$s', $column);
             $params[$column] = $value;
             $columnType = $types[$column] ?? null;
 
+            // Special handling for array values (used in `IN` conditions)
             if (is_array($value)) {
                 if ($columnType === null) {
+                    // If no type is specified, default to a string array
                     $paramTypes[$column] = ArrayParameterType::STRING;
                 } else {
+                    /*
+                     * Extract the base parameter type from different possible type formats:
+                     *
+                     * 1. Direct `ParameterType` enum
+                     * 2. `Type` object with `getBindingType` method
+                     * 3. String name that needs to be converted to `Type` object
+                     */
                     if ($columnType instanceof ParameterType) {
                         $paramType = $columnType;
                     } elseif ($columnType instanceof Type) {
@@ -162,6 +173,10 @@ readonly class TableGateway
                         $paramType = Type::getType($columnType)->getBindingType();
                     }
 
+                    /*
+                     * Convert the standard parameter type to its array equivalent. This ensures proper type handling
+                     * for array values in prepared statements.
+                     */
                     $paramTypes[$column] = match ($paramType) {
                         ParameterType::ASCII => ArrayParameterType::ASCII,
                         ParameterType::BINARY => ArrayParameterType::BINARY,
@@ -173,6 +188,7 @@ readonly class TableGateway
                     };
                 }
             } elseif ($columnType) {
+                // For non-array values, use the provided type directly
                 $paramTypes[$column] = $columnType;
             }
         }
@@ -210,6 +226,7 @@ readonly class TableGateway
      *
      * @return Result A Result object that can be used to fetch the query results.
      * @throws Exception If a database error occurs during the query execution.
+     * @throws InvalidArgumentException If the WHERE clause format is invalid or unsupported.
      *
      * @phpstan-param WrapperParameterTypeArray            $types
      */
@@ -240,6 +257,7 @@ readonly class TableGateway
      *
      * @return array<string, mixed>|null The first matching row as an associative array, or NULL if no rows are found.
      * @throws Exception If a database error occurs during the query execution.
+     * @throws InvalidArgumentException If the WHERE clause format is invalid or unsupported.
      * @throws ResultException If strict mode is enabled and the query returns more than one row.
      *
      * @phpstan-param WrapperParameterTypeArray            $types

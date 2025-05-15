@@ -75,39 +75,57 @@ readonly class BulkInsert
 
         foreach ($rows as $row) {
             if ($columnNames === null) {
+                // Extract column names from the first row and use them as a template for validating all later rows
                 $columnNames = array_keys($row);
             } elseif (array_keys($row) !== $columnNames) {
+                // Ensure all rows have identical columns to prevent SQL errors and maintain data integrity
                 throw new InvalidArgumentException('All rows must have the same columns.');
             }
 
+            // Generate a placeholder string (e.g. `(?,?,?)`) with one `?` per column
             $values[] = sprintf('(%s)', implode(',', array_fill(0, count($row), '?')));
 
+            // Convert the two-dimensional row data into a flat array of parameters and capture each parameter’s type
             foreach ($row as $column => $value) {
                 $params[] = $value;
 
                 if ($columnTypes) {
+                    // Use the provided column type or default to `STRING` if not specified
                     $types[] = $columnTypes[$column] ?? ParameterType::STRING;
                 }
             }
         }
 
+        // Prepare the columns with proper quoting for SQL injection prevention, e.g. `id`,`name`,`email`
         $columns = implode(',', array_map($this->platform->quoteIdentifier(...), $columnNames));
         $tableName = $this->platform->quoteIdentifier($table);
 
+        // Format: INSERT INTO `table_name` (`col1`,`col2`) VALUES (?,?), (?,?)
         $sql = sprintf(/** @lang text */ 'INSERT INTO %s (%s) VALUES %s', $tableName, $columns, implode(', ', $values));
 
         if ($updateOnDuplicateKey) {
             if ($this->platform instanceof MariaDBPlatform) {
+                /*
+                 * MariaDB does not have a row alias like MySQL 8.0 and above.
+                 *
+                 * Format: `col1` = VALUES(`col1`)
+                 */
                 $updateColumns = array_map(
                     fn(string $column): string => sprintf(
                         '%1$s = VALUES(%1$s)',
                         $this->platform->quoteIdentifier($column),
                     ),
+                    // If no specific update columns are provided, update all columns
                     $updateColumns ?: $columnNames,
                 );
 
                 $sql .= sprintf(' ON DUPLICATE KEY UPDATE %s', implode(',', $updateColumns));
             } else {
+                /*
+                 * For MySQL, use the row alias syntax with a reference to the new row values. It's supported since MySQL 8.0.
+                 *
+                 * Format: `col1` = `new`.`col1`
+                 */
                 $alias = $this->platform->quoteIdentifier('new');
                 $updateColumns = array_map(
                     fn(string $column): string => sprintf(
@@ -118,6 +136,7 @@ readonly class BulkInsert
                     $updateColumns ?: $columnNames,
                 );
 
+                // Format: AS `new` ON DUPLICATE KEY UPDATE `col1` = `new`.`col1`,`col2` = `new`.`col2`
                 $sql .= sprintf(' AS %s ON DUPLICATE KEY UPDATE %s', $alias, implode(',', $updateColumns));
             }
         }
